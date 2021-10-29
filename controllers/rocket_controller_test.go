@@ -2,6 +2,7 @@ package controllers
 
 import (
 	"context"
+	"github.com/hown3d/chat-operator/pkg/util"
 	"reflect"
 	"time"
 
@@ -49,7 +50,7 @@ var _ = Describe("Rocket controller", func() {
 					Name:      RocketName,
 					Namespace: RocketNamespace,
 				},
-				Spec: chatv1alpha1.RocketSpec{Replicas: 1},
+				Spec: &chatv1alpha1.RocketSpec{Replicas: 1},
 			}
 			Expect(k8sClient.Create(ctx, rocket)).Should(Succeed())
 
@@ -97,7 +98,7 @@ var _ = Describe("Rocket controller", func() {
 				Once that’s done, we create our new Job instance.
 			*/
 			By("By creating a new Job")
-			labels := labelsForRocket(RocketName)
+			labels := util.DefaultLabels(RocketName)
 			testPod := &corev1.Pod{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      PodName,
@@ -135,7 +136,7 @@ var _ = Describe("Rocket controller", func() {
 					return nil, err
 				}
 
-				names := []string{}
+				var names []string
 				for _, pod := range createdRocket.Status.Pods {
 					names = append(names, pod)
 				}

@@ -19,6 +19,8 @@ package controllers
 import (
 	"context"
 	"fmt"
+	"github.com/hown3d/chat-operator/pkg/mongo"
+	"github.com/hown3d/chat-operator/pkg/util"
 	"reflect"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 
@@ -26,7 +28,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
-	"sigs.k8s.io/controller-runtime/pkg/client"
+	runtimeClient "sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 
 	"github.com/go-logr/logr"
@@ -38,7 +40,7 @@ import (
 
 // RocketReconciler reconciles a Rocket object
 type RocketReconciler struct {
-	client.Client
+	runtimeClient.Client
 	Scheme *runtime.Scheme
 	Log    logr.Logger
 }
@@ -70,34 +72,41 @@ func (r *RocketReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 		}
 		return ctrl.Result{}, err
 	}
+
+	// append default labels to rocketchat object
+	if rocket.Labels == nil {
+		rocket.Labels = util.DefaultLabels(rocket.Name)
+	} else {
+		rocket.Labels = util.MergeLabels(rocket.Labels, util.DefaultLabels(rocket.Name))
+	}
+
+	// Check if the mongodb already exists, if not create a new one.
+	result, err := r.createMongo(ctx, rocket)
+	if err != nil {
+		return result, err
+	}
+	if result.Requeue {
+		// err is always nil here
+		return result, err
+	}
+
 	//
 	// Check if the deployment already exists, if not create a new deployment.
-	found := &appsv1.Deployment{}
-	err = r.Get(ctx, types.NamespacedName{Name: rocket.Name, Namespace: rocket.Namespace}, found)
+	result, err = r.createWebserver(ctx, rocket, mongo.DatabaseName(rocket.Name))
 	if err != nil {
-		if errors.IsNotFound(err) {
-			// Define and create a new deployment.
-			dep := rocketUtil.CreateOrUpdateRocketDeployment(rocket, nil)
-			return r.createResources(ctx, rocket, dep)
-		}
+		return result, err
 	}
-	//
-	// Ensure the deployment size is the same as the spec.
-	size := rocket.Spec.Replicas
-	if *found.Spec.Replicas != size {
-		found.Spec.Replicas = &size
-		if err = r.Update(ctx, found); err != nil {
-			return ctrl.Result{}, err
-		}
-		return ctrl.Result{Requeue: true}, nil
+	if result.Requeue {
+		// err is always nil here
+		return result, err
 	}
 
 	// Update the rocket status with the pod names.
 	// List the pods for this CR's deployment.
 	podList := &corev1.PodList{}
-	listOpts := []client.ListOption{
-		client.InNamespace(rocket.Namespace),
-		client.MatchingLabels(rocketUtil.LabelsForRocket(rocket.Name)),
+	listOpts := []runtimeClient.ListOption{
+		runtimeClient.InNamespace(rocket.Namespace),
+		runtimeClient.MatchingLabels(rocket.Labels),
 	}
 	if err = r.List(ctx, podList, listOpts...); err != nil {
 		return ctrl.Result{}, err
@@ -121,19 +130,138 @@ func getPodNames(pods []corev1.Pod) (podNames []string) {
 	return podNames
 }
 
-func (r *RocketReconciler) createResources(ctx context.Context, m *chatv1alpha1.Rocket, resource client.Object) (ctrl.Result, error) {
-	// Set rocket instance as the owner of the resource
-	// NOTE: calling SetControllerReference, and setting owner references in
-	// general, is important as it allows deleted objects to be garbage collected.
-	err := controllerutil.SetControllerReference(m, resource, r.Scheme)
+func (r *RocketReconciler) createMongo(ctx context.Context, obj *chatv1alpha1.Rocket) (ctrl.Result, error) {
+	conf := mongo.NewConfig(obj)
+
+	secret := conf.MakeSecret()
+	result, err := r.createOrUpdateResource(ctx, obj, secret)
 	if err != nil {
-		return ctrl.Result{}, fmt.Errorf("error setting owner reference for %v to rocket %v: %w", m.Name, resource.GetName(), err)
+		return result, err
 	}
-	// create Resource and requeue if no error is found
-	if err = r.Create(ctx, resource); err != nil {
-		return ctrl.Result{}, fmt.Errorf("error creating resource %v: %w", resource.GetName(), err)
+	if result.Requeue {
+		// err is always nil here
+		return result, err
 	}
-	return ctrl.Result{Requeue: true}, nil
+	cm := conf.MakeScriptsConfigmap()
+	result, err = r.createOrUpdateResource(ctx, obj, cm)
+	if err != nil {
+		return result, err
+	}
+	if result.Requeue {
+		// err is always nil here
+		return result, err
+	}
+
+	service := conf.MakeStatefulSetService()
+	result, err = r.createOrUpdateResource(ctx, obj, service)
+	if err != nil {
+		return result, err
+	}
+	if result.Requeue {
+		// err is always nil here
+		return result, err
+	}
+
+	sts := conf.MakeStatefulSet(obj.Spec.Database, cm.Name, service.Name)
+	result, err = r.createOrUpdateResource(ctx, obj, sts)
+	if err != nil {
+		return result, err
+	}
+	if result.Requeue {
+		// err is always nil here
+		return result, err
+	}
+
+	return ctrl.Result{}, err
+}
+
+func (r *RocketReconciler) createWebserver(ctx context.Context, obj *chatv1alpha1.Rocket, mongoName string) (ctrl.Result, error) {
+	mongoEnv := map[string]corev1.EnvVarSource{
+		"MONGO_URL": {
+			SecretKeyRef: &corev1.SecretKeySelector{
+				LocalObjectReference: corev1.LocalObjectReference{Name: mongoName + "-auth"},
+				Key:                  "uri",
+			},
+		},
+		"MONGO_OPLOG_URL": {
+			SecretKeyRef: &corev1.SecretKeySelector{
+				LocalObjectReference: corev1.LocalObjectReference{Name: mongoName + "-auth"},
+				Key:                  "oplog-uri",
+			},
+		},
+	}
+	conf := rocketUtil.NewConfig(obj)
+
+	serviceaccount := conf.MakeServiceAccount()
+	result, err := r.createOrUpdateResource(ctx, obj, serviceaccount)
+	if err != nil {
+		return result, err
+	}
+	if result.Requeue {
+		// err is always nil here
+		return result, err
+	}
+
+	deployment := conf.MakeDeployment(mongoEnv)
+	result, err = r.createOrUpdateResource(ctx, obj, deployment)
+	if err != nil {
+		return result, err
+	}
+	if result.Requeue {
+		// err is always nil here
+		return result, err
+	}
+
+	service := conf.MakeService()
+	result, err = r.createOrUpdateResource(ctx, obj, service)
+	if err != nil {
+		return result, err
+	}
+	if result.Requeue {
+		// err is always nil here
+		return result, err
+	}
+
+	return ctrl.Result{}, err
+}
+
+func (r *RocketReconciler) checkIfResourceExists(ctx context.Context, resource runtimeClient.Object) (bool, error) {
+	var found runtimeClient.Object
+	err := r.Get(ctx, types.NamespacedName{Name: resource.GetName(), Namespace: resource.GetNamespace()}, found)
+	if err != nil {
+		if errors.IsNotFound(err) {
+			return false, nil
+		}
+		// error is not wanted, throw it
+		return true, fmt.Errorf("Error getting resource %v: %w", resource.GetName(), err)
+	}
+	// resource exists
+	return true, nil
+}
+
+// Check if the deployment already exists, if not create it.
+func (r *RocketReconciler) createOrUpdateResource(ctx context.Context, obj *chatv1alpha1.Rocket, resource runtimeClient.Object) (ctrl.Result, error) {
+	exists, err := r.checkIfResourceExists(ctx, resource)
+	if err != nil {
+		return ctrl.Result{}, fmt.Errorf("error checking if resource %v exists: %w", resource.GetName(), err)
+	}
+	// create
+	if !exists {
+		// Set rocket instance as the owner of the resource
+		// NOTE: calling SetControllerReference, and setting owner references in
+		// general, is important as it allows deleted objects to be garbage collected.
+		err := controllerutil.SetControllerReference(obj, resource, r.Scheme)
+		if err != nil {
+			return ctrl.Result{}, fmt.Errorf("error setting owner reference for %v to rocket %v: %w", obj.Name, resource.GetName(), err)
+		}
+		// create Resource and requeue if no error is found
+		if err = r.Create(ctx, resource); err != nil {
+			return ctrl.Result{}, fmt.Errorf("error creating resource %v: %w", resource.GetName(), err)
+		}
+		return ctrl.Result{Requeue: true}, nil
+	}
+
+	return ctrl.Result{}, nil
 }
 
 // SetupWithManager sets up the controller with the Manager.

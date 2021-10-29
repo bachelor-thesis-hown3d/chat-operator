@@ -5,16 +5,16 @@ import (
 	"github.com/stretchr/testify/assert"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"reflect"
 	"testing"
 )
 
 var (
 	rocket = &chatv1alpha1.Rocket{
 		ObjectMeta: metav1.ObjectMeta{Name: "test-name", Namespace: "test-namespace"},
-		Spec:       chatv1alpha1.RocketSpec{},
-		Status:     chatv1alpha1.RocketStatus{},
+		Spec:       &chatv1alpha1.RocketSpec{},
+		Status:     &chatv1alpha1.RocketStatus{},
 	}
+	c = NewConfig(rocket)
 )
 
 func TestCreateOrUpdateRocketDeployment_MongoEnvVars(t *testing.T) {
@@ -40,7 +40,7 @@ func TestCreateOrUpdateRocketDeployment_MongoEnvVars(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := CreateOrUpdateRocketDeployment(rocket, tt.args.mongoEnv)
+			got := c.MakeDeployment(tt.args.mongoEnv)
 			assert.Equal(t, tt.want, got.Spec.Template.Spec.Containers[0].Env)
 		})
 	}
@@ -59,51 +59,21 @@ func TestCreateOrUpdateRocketSecret(t *testing.T) {
 }
 
 func TestCreateOrUpdateRocketService_Names(t *testing.T) {
-	type args struct {
-		m *chatv1alpha1.Rocket
-	}
 	tests := []struct {
 		name string
-		args args
 		want *corev1.Service
 	}{
-		{name: "test-names", args: args{
-			m: &chatv1alpha1.Rocket{
-				TypeMeta: metav1.TypeMeta{},
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "test-name",
-					Namespace: "test-namespace",
-				},
+		{name: "test-names",
+			want: &corev1.Service{
+				ObjectMeta: metav1.ObjectMeta{Name: "test-name-service", Namespace: "test-namespace"},
 			},
-		}, want: &corev1.Service{
-			ObjectMeta: metav1.ObjectMeta{Name: "test-name-service", Namespace: "test-namespace"},
-		}},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := CreateOrUpdateRocketService(rocket)
+			got := c.MakeService()
 			assert.Equal(t, tt.want.ObjectMeta.Name, got.ObjectMeta.Name)
 			assert.Equal(t, tt.want.ObjectMeta.Namespace, got.ObjectMeta.Namespace)
-		})
-	}
-}
-
-func TestLabelsForRocket(t *testing.T) {
-	type args struct {
-		name string
-	}
-	tests := []struct {
-		name string
-		args args
-		want map[string]string
-	}{
-		// TODO: Add test cases.
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			if got := LabelsForRocket(tt.args.name); !reflect.DeepEqual(got, tt.want) {
-				t.Errorf("LabelsForRocket() = %v, want %v", got, tt.want)
-			}
 		})
 	}
 }

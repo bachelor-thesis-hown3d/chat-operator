@@ -2,8 +2,8 @@ package rocket
 
 import (
 	"fmt"
-
 	chatv1alpha1 "github.com/hown3d/chat-operator/api/v1alpha1"
+	"github.com/hown3d/chat-operator/pkg/util"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -16,28 +16,56 @@ var (
 	group    = int64(999)
 )
 
-// CreateOrUpdateRocketDeployment returns a Deployment object for data from m.
-func CreateOrUpdateRocketDeployment(m *chatv1alpha1.Rocket, mongoEnv map[string]corev1.EnvVarSource) *appsv1.Deployment {
-	labels := LabelsForRocket(m.Name)
-	replicas := m.Spec.Replicas
+type config struct {
+	name            string
+	namespace       string
+	webserverLabels map[string]string
+	commonLabels    map[string]string
+	rocket          *chatv1alpha1.Rocket
+}
+
+func NewConfig(r *chatv1alpha1.Rocket) *config {
+	c := &config{name: "rocket-webserver" + r.Name, namespace: r.Namespace, rocket: r, webserverLabels: map[string]string{"webserver": WebserverName(r.Name)}}
+	c.commonLabels = util.MergeLabels(c.webserverLabels, r.Labels)
+	return c
+}
+
+func WebserverName(name string) string {
+	return name + "-database"
+}
+
+func (c *config) MakeServiceAccount() *corev1.ServiceAccount {
+	sa := &corev1.ServiceAccount{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      c.name,
+			Namespace: c.namespace,
+		},
+		Secrets: []corev1.ObjectReference{{Name: c.name + "-auth", Namespace: c.namespace}},
+	}
+	return sa
+}
+
+// MakeDeployment returns a Deployment object for data from m.
+func (c *config) MakeDeployment(mongoEnv map[string]corev1.EnvVarSource) *appsv1.Deployment {
+	replicas := c.rocket.Spec.Replicas
 	if replicas == 0 {
 		replicas = 1
 	}
 
 	dep := &appsv1.Deployment{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      m.Name,
-			Namespace: m.Namespace,
-			Labels:    m.Labels,
+			Name:      c.name,
+			Namespace: c.namespace,
+			Labels:    c.commonLabels,
 		},
 		Spec: appsv1.DeploymentSpec{
 			Replicas: &replicas,
 			Selector: &metav1.LabelSelector{
-				MatchLabels: labels,
+				MatchLabels: c.webserverLabels,
 			},
 			Template: corev1.PodTemplateSpec{
 				ObjectMeta: metav1.ObjectMeta{
-					Labels: labels,
+					Labels: c.webserverLabels,
 				},
 				Spec: corev1.PodSpec{
 					SecurityContext: &corev1.PodSecurityContext{
@@ -46,7 +74,7 @@ func CreateOrUpdateRocketDeployment(m *chatv1alpha1.Rocket, mongoEnv map[string]
 						RunAsNonRoot: &boolTrue,
 					},
 					Containers: []corev1.Container{{
-						Image: fmt.Sprintf("rocket.chat:%v", m.Spec.Version),
+						Image: fmt.Sprintf("rocket.chat:%v", c.rocket.Spec.Version),
 						Name:  "rocket",
 						Ports: []corev1.ContainerPort{{
 							ContainerPort: 3000,
@@ -81,13 +109,12 @@ func CreateOrUpdateRocketDeployment(m *chatv1alpha1.Rocket, mongoEnv map[string]
 	return dep
 }
 
-func CreateOrUpdateRocketService(m *chatv1alpha1.Rocket) *corev1.Service {
-	labels := LabelsForRocket(m.Name)
+func (c *config) MakeService() *corev1.Service {
 	service := &corev1.Service{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      m.Name + "-service",
-			Namespace: m.Namespace,
-			Labels:    m.Labels,
+			Name:      c.name + "-service",
+			Namespace: c.namespace,
+			Labels:    c.commonLabels,
 		},
 		Spec: corev1.ServiceSpec{
 			Type: corev1.ServiceTypeClusterIP,
@@ -96,17 +123,8 @@ func CreateOrUpdateRocketService(m *chatv1alpha1.Rocket) *corev1.Service {
 				Port:       80,
 				Name:       "http",
 			}},
-			Selector: labels,
+			Selector: c.webserverLabels,
 		},
 	}
 	return service
-}
-
-func CreateOrUpdateRocketSecret() {
-	panic("Not Implemented")
-}
-
-// LabelsForRocket creates a simple set of labels for rocket.
-func LabelsForRocket(name string) map[string]string {
-	return map[string]string{"rocketchat": name}
 }
