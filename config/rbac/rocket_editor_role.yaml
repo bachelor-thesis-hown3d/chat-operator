@@ -1,0 +1,24 @@
+# permissions for end users to edit rockets.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: rocket-editor-role
+rules:
+- apiGroups:
+  - chat.accso.de
+  resources:
+  - rockets
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - chat.accso.de
+  resources:
+  - rockets/status
+  verbs:
+  - get
