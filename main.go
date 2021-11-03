@@ -78,10 +78,8 @@ func main() {
 		os.Exit(1)
 	}
 
-	if err = (&controllers.RocketReconciler{
-		Client: mgr.GetClient(),
-		Scheme: mgr.GetScheme(),
-	}).SetupWithManager(mgr); err != nil {
+	rocketReconciler := controllers.NewRocketReconciler(mgr.GetClient(), mgr.GetScheme(), mgr.GetEventRecorderFor("rocket-controller"))
+	if err = rocketReconciler.SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "Rocket")
 		os.Exit(1)
 	}

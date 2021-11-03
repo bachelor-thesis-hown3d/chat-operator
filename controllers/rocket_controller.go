@@ -18,38 +18,52 @@ package controllers
 
 import (
 	"context"
-	"fmt"
-	"github.com/hown3d/chat-operator/pkg/mongo"
+	"time"
+
+	"github.com/hown3d/chat-operator/pkg/common"
 	"github.com/hown3d/chat-operator/pkg/util"
-	"reflect"
-	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
 	runtimeClient "sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 
-	"github.com/go-logr/logr"
 	chatv1alpha1 "github.com/hown3d/chat-operator/api/v1alpha1"
-	rocketUtil "github.com/hown3d/chat-operator/pkg/rocket"
-	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/client-go/tools/record"
 )
+
+const (
+	RequeueDelay      = 30 * time.Second
+	RequeueDelayError = 5 * time.Second
+)
+
+var controllerLog = ctrl.Log.WithName("controllers").WithName("Rocket")
 
 // RocketReconciler reconciles a Rocket object
 type RocketReconciler struct {
-	runtimeClient.Client
-	Scheme *runtime.Scheme
-	Log    logr.Logger
+	client   runtimeClient.Client
+	scheme   *runtime.Scheme
+	recorder record.EventRecorder
+	ctx      context.Context
+}
+
+func NewRocketReconciler(client runtimeClient.Client, scheme *runtime.Scheme, recorder record.EventRecorder) *RocketReconciler {
+	return &RocketReconciler{
+		client:   client,
+		scheme:   scheme,
+		recorder: recorder,
+		ctx:      context.TODO(),
+	}
 }
 
 //+kubebuilder:rbac:groups=chat.accso.de,resources=rockets,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups=chat.accso.de,resources=rockets/status,verbs=get;update;patch
 //+kubebuilder:rbac:groups=chat.accso.de,resources=rockets/finalizers,verbs=update
-//+kubebuilder:rbac:groups=apps,resources=deployments,verbs=get;list;watch;create;update;patch;delete
-//+kubebuilder:rbac:groups=apps,resources=statefulsets,verbs=get;list;watch;create;update;patch;delete
+//+kubebuilder:rbac:groups=apps,resources=deployments;statefulsets,verbs=get;list;watch;create;update;patch;delete
+//+kubebuilder:rbac:groups=core,resources=serviceaccounts;configmaps;secrets,verbs=get;list;watch;create;update;patch;delete
+//+kubebuilder:rbac:groups=networking,resources=ingress,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups=core,resources=pods,verbs=get;list;watch
 
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
@@ -59,215 +73,124 @@ type RocketReconciler struct {
 // perform operations to make the cluster state reflect the state specified by
 // the user.
 //
-// For more details, check Reconcile and its Result here:
-// - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.9.2/pkg/reconcile
-func (r *RocketReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	_ = log.FromContext(ctx)
+func (r *RocketReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
+	reqLogger := log.Log.WithValues("Request.Namespace", req.Namespace, "Request.Name", req.Name)
+	reqLogger.Info("Reconciling...")
 	// fetch rocket instance
-	rocket := &chatv1alpha1.Rocket{}
-	err := r.Get(ctx, req.NamespacedName, rocket)
+	instance := &chatv1alpha1.Rocket{}
+	err := r.client.Get(r.ctx, req.NamespacedName, instance)
 	if err != nil {
+		// Request Object not found, could have been deleted after reconcile request
+		// return and dont requeue
 		if errors.IsNotFound(err) {
 			return ctrl.Result{}, nil
 		}
+		// Error reading the object - requeue the request.
 		return ctrl.Result{}, err
 	}
-
 	// append default labels to rocketchat object
-	if rocket.Labels == nil {
-		rocket.Labels = util.DefaultLabels(rocket.Name)
+	if instance.Labels == nil {
+		instance.Labels = util.DefaultLabels(instance.Name)
 	} else {
-		rocket.Labels = util.MergeLabels(rocket.Labels, util.DefaultLabels(rocket.Name))
+		instance.Labels = util.MergeLabels(instance.Labels, util.DefaultLabels(instance.Name))
 	}
-
-	// Check if the mongodb already exists, if not create a new one.
-	result, err := r.createMongo(ctx, rocket)
+	// read current Cluster State
+	currentState := &common.ClusterState{}
+	err = currentState.Read(r.ctx, instance, r.client)
 	if err != nil {
-		return result, err
-	}
-	if result.Requeue {
-		// err is always nil here
-		return result, err
+		return r.manageError(instance, err)
 	}
 
-	//
-	// Check if the deployment already exists, if not create a new deployment.
-	result, err = r.createWebserver(ctx, rocket, mongo.DatabaseName(rocket.Name))
+	desiredState := r.setDesiredState(currentState, instance)
+	actionRunner := common.NewClusterActionRunner(r.ctx, r.client, r.scheme, instance, &controllerLog)
+	err = actionRunner.RunAll(desiredState)
 	if err != nil {
-		return result, err
+		return r.manageError(instance, err)
 	}
-	if result.Requeue {
-		// err is always nil here
-		return result, err
-	}
+	return r.manageSuccess(instance, currentState)
 
+}
+
+func (r *RocketReconciler) updatePodNames(instance *chatv1alpha1.Rocket) error {
+	var podNames []string
 	// Update the rocket status with the pod names.
 	// List the pods for this CR's deployment.
 	podList := &corev1.PodList{}
 	listOpts := []runtimeClient.ListOption{
-		runtimeClient.InNamespace(rocket.Namespace),
-		runtimeClient.MatchingLabels(rocket.Labels),
+		runtimeClient.InNamespace(instance.Namespace),
+		runtimeClient.MatchingLabels(instance.Labels),
 	}
-	if err = r.List(ctx, podList, listOpts...); err != nil {
-		return ctrl.Result{}, err
+	if err := r.client.List(r.ctx, podList, listOpts...); err != nil {
+		return err
 	}
-	//
-	// Update status.Nodes if needed.
-	podNames := getPodNames(podList.Items)
-	if !reflect.DeepEqual(podNames, rocket.Status.Pods) {
-		rocket.Status.Pods = podNames
-		if err := r.Status().Update(ctx, rocket); err != nil {
-			return ctrl.Result{}, err
-		}
-	}
-	return ctrl.Result{}, nil
-}
 
-func getPodNames(pods []corev1.Pod) (podNames []string) {
-	for _, pod := range pods {
+	// Update status.Pods if needed.
+	for _, pod := range podList.Items {
 		podNames = append(podNames, pod.Name)
 	}
-	return podNames
+	instance.Status.Pods = podNames
+	return nil
 }
 
-func (r *RocketReconciler) createMongo(ctx context.Context, obj *chatv1alpha1.Rocket) (ctrl.Result, error) {
-	conf := mongo.NewConfig(obj)
+func (r *RocketReconciler) manageError(instance *chatv1alpha1.Rocket, issue error) (ctrl.Result, error) {
+	r.recorder.Event(instance, "Warning", "ProcessingError", issue.Error())
 
-	secret := conf.MakeSecret()
-	result, err := r.createOrUpdateResource(ctx, obj, secret)
+	instance.Status.Message = issue.Error()
+	instance.Status.Ready = false
+
+	err := r.client.Status().Update(r.ctx, instance)
 	if err != nil {
-		return result, err
-	}
-	if result.Requeue {
-		// err is always nil here
-		return result, err
-	}
-	cm := conf.MakeScriptsConfigmap()
-	result, err = r.createOrUpdateResource(ctx, obj, cm)
-	if err != nil {
-		return result, err
-	}
-	if result.Requeue {
-		// err is always nil here
-		return result, err
+		controllerLog.Error(err, "unable to update status of rocketchat %v", instance.Name)
 	}
 
-	service := conf.MakeStatefulSetService()
-	result, err = r.createOrUpdateResource(ctx, obj, service)
-	if err != nil {
-		return result, err
-	}
-	if result.Requeue {
-		// err is always nil here
-		return result, err
-	}
-
-	sts := conf.MakeStatefulSet(obj.Spec.Database, cm.Name, service.Name)
-	result, err = r.createOrUpdateResource(ctx, obj, sts)
-	if err != nil {
-		return result, err
-	}
-	if result.Requeue {
-		// err is always nil here
-		return result, err
-	}
-
-	return ctrl.Result{}, err
+	return ctrl.Result{
+		RequeueAfter: RequeueDelayError,
+		Requeue:      true,
+	}, nil
 }
 
-func (r *RocketReconciler) createWebserver(ctx context.Context, obj *chatv1alpha1.Rocket, mongoName string) (ctrl.Result, error) {
-	mongoEnv := map[string]corev1.EnvVarSource{
-		"MONGO_URL": {
-			SecretKeyRef: &corev1.SecretKeySelector{
-				LocalObjectReference: corev1.LocalObjectReference{Name: mongoName + "-auth"},
-				Key:                  "uri",
-			},
-		},
-		"MONGO_OPLOG_URL": {
-			SecretKeyRef: &corev1.SecretKeySelector{
-				LocalObjectReference: corev1.LocalObjectReference{Name: mongoName + "-auth"},
-				Key:                  "oplog-uri",
-			},
-		},
-	}
-	conf := rocketUtil.NewConfig(obj)
-
-	serviceaccount := conf.MakeServiceAccount()
-	result, err := r.createOrUpdateResource(ctx, obj, serviceaccount)
+func (r *RocketReconciler) manageSuccess(instance *chatv1alpha1.Rocket, currentState *common.ClusterState) (ctrl.Result, error) {
+	// Check if the resources are ready
+	resourcesReady, err := currentState.IsResourcesReady(instance)
 	if err != nil {
-		return result, err
-	}
-	if result.Requeue {
-		// err is always nil here
-		return result, err
+		return r.manageError(instance, err)
 	}
 
-	deployment := conf.MakeDeployment(mongoEnv)
-	result, err = r.createOrUpdateResource(ctx, obj, deployment)
+	instance.Status.Ready = resourcesReady
+	instance.Status.Message = "Sucessfull"
+	err = r.updatePodNames(instance)
 	if err != nil {
-		return result, err
-	}
-	if result.Requeue {
-		// err is always nil here
-		return result, err
+		return r.manageError(instance, err)
 	}
 
-	service := conf.MakeService()
-	result, err = r.createOrUpdateResource(ctx, obj, service)
+	// If resources are ready and we have not errored before now, we are in a reconciling phase
+	if resourcesReady {
+		instance.Status.Phase = chatv1alpha1.PhaseReconciling
+	} else {
+		instance.Status.Phase = chatv1alpha1.PhaseInitialising
+	}
+
+	//ingress := currentState.RocketIngress
+	//if ingress != nil {
+	//	instance.Status.ExternalURL = ingress.Status.
+	//}
+
+	err = r.client.Status().Update(r.ctx, instance)
 	if err != nil {
-		return result, err
-	}
-	if result.Requeue {
-		// err is always nil here
-		return result, err
-	}
-
-	return ctrl.Result{}, err
-}
-
-func (r *RocketReconciler) checkIfResourceExists(ctx context.Context, resource runtimeClient.Object) (bool, error) {
-	var found runtimeClient.Object
-	err := r.Get(ctx, types.NamespacedName{Name: resource.GetName(), Namespace: resource.GetNamespace()}, found)
-	if err != nil {
-		if errors.IsNotFound(err) {
-			return false, nil
-		}
-		// error is not wanted, throw it
-		return true, fmt.Errorf("Error getting resource %v: %w", resource.GetName(), err)
-	}
-	// resource exists
-	return true, nil
-}
-
-// Check if the deployment already exists, if not create it.
-func (r *RocketReconciler) createOrUpdateResource(ctx context.Context, obj *chatv1alpha1.Rocket, resource runtimeClient.Object) (ctrl.Result, error) {
-	exists, err := r.checkIfResourceExists(ctx, resource)
-	if err != nil {
-		return ctrl.Result{}, fmt.Errorf("error checking if resource %v exists: %w", resource.GetName(), err)
-	}
-	// create
-	if !exists {
-		// Set rocket instance as the owner of the resource
-		// NOTE: calling SetControllerReference, and setting owner references in
-		// general, is important as it allows deleted objects to be garbage collected.
-		err := controllerutil.SetControllerReference(obj, resource, r.Scheme)
-		if err != nil {
-			return ctrl.Result{}, fmt.Errorf("error setting owner reference for %v to rocket %v: %w", obj.Name, resource.GetName(), err)
-		}
-		// create Resource and requeue if no error is found
-		if err = r.Create(ctx, resource); err != nil {
-			return ctrl.Result{}, fmt.Errorf("error creating resource %v: %w", resource.GetName(), err)
-		}
-		return ctrl.Result{Requeue: true}, nil
+		controllerLog.Error(err, "unable to update status")
+		return ctrl.Result{
+			RequeueAfter: RequeueDelayError,
+			Requeue:      true,
+		}, nil
 	}
 
-	return ctrl.Result{}, nil
+	controllerLog.Info("desired cluster state met")
+	return ctrl.Result{RequeueAfter: RequeueDelay}, nil
 }
 
 // SetupWithManager sets up the controller with the Manager.
 func (r *RocketReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&chatv1alpha1.Rocket{}).
-		Owns(&appsv1.Deployment{}).
 		Complete(r)
 }

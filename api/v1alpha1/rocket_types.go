@@ -21,6 +21,15 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
+type StatusPhase string
+
+var (
+	NoPhase           StatusPhase
+	PhaseReconciling  StatusPhase = "reconciling"
+	PhaseFailing      StatusPhase = "failing"
+	PhaseInitialising StatusPhase = "initialising"
+)
+
 // EDIT THIS FILE!  THIS IS SCAFFOLDING FOR YOU TO OWN!
 // NOTE: json tags are required.  Any new fields you add must have json tags for the fields to be serialized.
 
@@ -95,6 +104,14 @@ type RocketStatus struct {
 
 	// Nodes are the names of the Rocket.Chat Pods
 	Pods []string `json:"pods"`
+	// Current phase of the operator.
+	Phase StatusPhase `json:"phase"`
+	// Human-readable message indicating details about current operator phase or error.
+	Message string `json:"message"`
+	// True if all resources are in a ready state and all work is done.
+	Ready bool `json:"ready"`
+	// External URL for accessing Keycloak instance from outside the cluster. Is identical to external.URL if it's specified, otherwise is computed (e.g. from Ingress).
+	ExternalURL string `json:"externalURL,omitempty"`
 }
 
 //+kubebuilder:object:root=true
