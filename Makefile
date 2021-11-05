@@ -109,12 +109,12 @@ docker-push: ## Push docker image with the manager.
 
 ##@ Deployment
 
-quickstart: kind dashboard install deploy-sample run
+quickstart: kind dashboard install deploy-samples run
 
-deploy-sample:
+deploy-samples:
 	$(KUSTOMIZE) build config/samples | kubectl apply -f -
 
-undeploy-sample:
+undeploy-samples:
 	$(KUSTOMIZE) build config/samples | kubectl delete -f -
 
 install: manifests kustomize ## Install CRDs into the K8s cluster specified in ~/.kube/config.
@@ -136,7 +136,7 @@ dashboard:
 	echo "Access Dashboard on https://localhost:7070 with Access Token $(shell kubectl get secret/service-account-token -n kubernetes-dashboard -o template --template={{.data.token}} | base64 -d )"
 
 kind:
-	kind create cluster --config hack/kind.yaml
+	kind create cluster --config hack/kind.yaml ||true
 	kubectl wait --for=condition=Ready=true node --all --timeout=2m
 
 teardown:

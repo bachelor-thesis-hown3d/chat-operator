@@ -6,7 +6,7 @@ tmp_dir = "tmp"
   # The next one from above is how your application will be started after compiled.
   full_bin = "./tmp/main -zap-devel"
   cmd = "go build -o ./tmp/main ."
-  delay = 1000
+  delay = 5000
   exclude_dir = ["assets", "tmp", "vendor","hack"]
   exclude_file = []
   exclude_regex = []
@@ -15,7 +15,6 @@ tmp_dir = "tmp"
   include_dir = []
   include_ext = ["go", "tpl", "tmpl", "html"]
   kill_delay = "0s"
-  log = "build-errors.log"
   send_interrupt = false
   stop_on_error = true
 [color]
