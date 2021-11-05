@@ -10,30 +10,37 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-func MongodbAuthSecret(r *chatv1alpha1.Rocket) *corev1.Secret {
+type MongodbAuthSecretCreator struct{}
+
+// Name returns the ressource action of the MongodbAuthSecretCreator
+func (m *MongodbAuthSecretCreator) Name() string {
+	return "Mongodb Auth Secret"
+}
+
+func (m *MongodbAuthSecretCreator) CreateResource(rocket *chatv1alpha1.Rocket) client.Object {
 	rootPassword := util.RandomString(25)
 	password := util.RandomString(25)
-	mongodbService := r.Name + MongodbServiceSuffix
+	mongodbService := rocket.Name + MongodbServiceSuffix
 	secret := &corev1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      r.Name + MongodbAuthSecretSuffix,
-			Namespace: r.Namespace,
-			Labels:    r.Labels,
+			Name:      rocket.Name + MongodbAuthSecretSuffix,
+			Namespace: rocket.Namespace,
+			Labels:    rocket.Labels,
 		},
 		Data: map[string][]byte{
 			"root-password":  []byte(rootPassword),
 			"password":       []byte(password),
 			"user":           []byte("rocketchat"),
 			"replicaset-key": []byte(util.RandomString(25)),
-			"oplog-uri": []byte(fmt.Sprintf("mongodb://root:%v@%v:27017/local?replicaSet=rs0&authSource=admin", rootPassword, mongodbService)),
-			"uri": []byte(fmt.Sprintf("mongodb://rocketchat:%v@%v:27017/rocketchat?replicaSet=rs0&w=majority", password, mongodbService)),
+			"oplog-uri":      []byte(fmt.Sprintf("mongodb://root:%v@%v:27017/local?replicaSet=rs0&authSource=admin", rootPassword, mongodbService)),
+			"uri":            []byte(fmt.Sprintf("mongodb://rocketchat:%v@%v:27017/rocketchat?replicaSet=rs0&w=majority", password, mongodbService)),
 		},
 	}
 	return secret
 }
-func MongodbAuthSecretSelector(r *chatv1alpha1.Rocket) client.ObjectKey {
+func (m *MongodbAuthSecretCreator) Selector(rocket *chatv1alpha1.Rocket) client.ObjectKey {
 	return client.ObjectKey{
-		Name:      r.Name + MongodbAuthSecretSuffix,
-		Namespace: r.Namespace,
+		Name:      rocket.Name + MongodbAuthSecretSuffix,
+		Namespace: rocket.Namespace,
 	}
 }

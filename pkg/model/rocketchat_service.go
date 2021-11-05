@@ -9,7 +9,13 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-func RocketService(r *chatv1alpha1.Rocket) *corev1.Service {
+type RocketServiceCreator struct{}
+
+// Name returns the ressource action of the RocketServiceCreator
+func (m *RocketServiceCreator) Name() string {
+	return "Rocket Service"
+}
+func (c *RocketServiceCreator) CreateResource(r *chatv1alpha1.Rocket) client.Object {
 	labels := util.MergeLabels(r.Labels, mongodbStatefulSetLabels(r))
 	service := &corev1.Service{
 		ObjectMeta: metav1.ObjectMeta{
@@ -30,7 +36,7 @@ func RocketService(r *chatv1alpha1.Rocket) *corev1.Service {
 	return service
 }
 
-func RocketServiceSelector(r *chatv1alpha1.Rocket) client.ObjectKey {
+func (c *RocketServiceCreator) Selector(r *chatv1alpha1.Rocket) client.ObjectKey {
 	return client.ObjectKey{
 		Name:      r.Name + RocketWebserverServiceSuffix,
 		Namespace: r.Namespace,

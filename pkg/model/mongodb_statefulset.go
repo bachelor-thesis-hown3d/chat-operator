@@ -9,10 +9,17 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-func MongodbStatefulSet(rocket *chatv1alpha1.Rocket) *appsv1.StatefulSet {
+type MongodbStatefulSetCreator struct{}
+
+// Name returns the ressource action of the MongodbAuthSecretCreator
+func (m *MongodbStatefulSetCreator) Name() string {
+	return "Mongodb StatefulSet"
+}
+func (m *MongodbStatefulSetCreator) CreateResource(rocket *chatv1alpha1.Rocket) client.Object {
 	replicas := rocket.Spec.Database.Replicas
 	liveness, readiness := mongodbStatefulsetHealthChecks()
 	labels := util.MergeLabels(rocket.Labels, mongodbStatefulSetLabels(rocket))
+	selector := new(MongodbScriptsConfigmapCreator).Selector(rocket)
 	d := rocket.Spec.Database
 	sts := &appsv1.StatefulSet{
 		ObjectMeta: metav1.ObjectMeta{
@@ -35,7 +42,7 @@ func MongodbStatefulSet(rocket *chatv1alpha1.Rocket) *appsv1.StatefulSet {
 						VolumeSource: corev1.VolumeSource{
 							ConfigMap: &corev1.ConfigMapVolumeSource{
 								LocalObjectReference: corev1.LocalObjectReference{
-									Name: MongodbConfigmapSelector(rocket).Name,
+									Name: selector.Name,
 								},
 								// 0 Prefix will assure the number is octal
 								DefaultMode: util.CreatePointerInt32(0775),
@@ -110,7 +117,7 @@ func MongodbStatefulSet(rocket *chatv1alpha1.Rocket) *appsv1.StatefulSet {
 	return sts
 }
 
-func MongodbStatefulSetSelector(r *chatv1alpha1.Rocket) client.ObjectKey {
+func (m *MongodbStatefulSetCreator) Selector(r *chatv1alpha1.Rocket) client.ObjectKey {
 	return client.ObjectKey{
 		Name:      r.Name + MongodbStatefulSetSuffix,
 		Namespace: r.Namespace,
@@ -141,7 +148,8 @@ func mongodbStatefulSetLabels(r *chatv1alpha1.Rocket) map[string]string {
 }
 
 func mongodbEnvVars(r *chatv1alpha1.Rocket) []corev1.EnvVar {
-	authSecretRef := corev1.LocalObjectReference{Name: MongodbAuthSecretSelector(r).Name}
+	secretCreator := MongodbAuthSecretCreator{}
+	authSecretRef := corev1.LocalObjectReference{Name: secretCreator.Selector(r).Name}
 	return []corev1.EnvVar{
 		{
 			Name: "MY_POD_NAME",

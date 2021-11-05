@@ -7,7 +7,14 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-func RocketIngress(r *chatv1alpha1.Rocket) *networkingv1.Ingress {
+type RocketIngressCreator struct{}
+
+// Name returns the ressource action of the RocketIngressCreator
+func (m *RocketIngressCreator) Name() string {
+	return "Rocket Ingress"
+}
+func (c *RocketIngressCreator) CreateResource(r *chatv1alpha1.Rocket) client.Object {
+	serviceSelector := new(RocketServiceCreator).Selector(r)
 	ingressPathType := networkingv1.PathTypeImplementationSpecific
 
 	return &networkingv1.Ingress{
@@ -29,7 +36,7 @@ func RocketIngress(r *chatv1alpha1.Rocket) *networkingv1.Ingress {
 									PathType: &ingressPathType,
 									Backend: networkingv1.IngressBackend{
 										Service: &networkingv1.IngressServiceBackend{
-											Name: RocketServiceSelector(r).Name,
+											Name: serviceSelector.Name,
 											Port: networkingv1.ServiceBackendPort{
 												Name: "http",
 											},
@@ -45,7 +52,7 @@ func RocketIngress(r *chatv1alpha1.Rocket) *networkingv1.Ingress {
 	}
 }
 
-func RocketIngressSelector(r *chatv1alpha1.Rocket) client.ObjectKey {
+func (c *RocketIngressCreator) Selector(r *chatv1alpha1.Rocket) client.ObjectKey {
 	return client.ObjectKey{
 		Name:      r.Name,
 		Namespace: r.Namespace,

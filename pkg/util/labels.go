@@ -1,6 +1,8 @@
 package util
 
-import "github.com/hown3d/chat-operator/api/v1alpha1"
+import (
+	"github.com/hown3d/chat-operator/api/v1alpha1"
+)
 
 func DefaultLabels(name string) map[string]string {
 	return map[string]string{"rocketchat": name}
@@ -8,7 +10,7 @@ func DefaultLabels(name string) map[string]string {
 
 // MergeLabels merges the toMerge map into the base map.
 // If keys are the same, the value of the toMerge map are used.
-func MergeLabels(base map[string]string, toMerge map[string]string) map[string]string {
+func MergeLabels(base, toMerge map[string]string) map[string]string {
 	if base == nil {
 		return toMerge
 	}
