@@ -38,6 +38,19 @@ spec:
             properties:
               database:
                 properties:
+                  adminSpec:
+                    description: AdminSpec specifies the admin username and email
+                    properties:
+                      email:
+                        description: Email is the email of the administrator
+                        type: string
+                      username:
+                        description: Username is the Username of the administrator
+                        type: string
+                    required:
+                    - email
+                    - username
+                    type: object
                   replicas:
                     description: Replicas of Mongodb Instance
                     format: int32
@@ -281,6 +294,8 @@ spec:
                     type: object
                   version:
                     type: string
+                required:
+                - adminSpec
                 type: object
               replicas:
                 description: Replicas specifies how many Webserver Pods shall be created

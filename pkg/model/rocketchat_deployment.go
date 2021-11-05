@@ -100,6 +100,11 @@ func rocketDeploymentEnvVars(rocket *chatv1alpha1.Rocket) []corev1.EnvVar {
 				},
 			},
 		},
+		// skips the inital setup wizard
+		{
+			Name: "OVERWRITE_SETTING_Show_Setup_Wizard",
+			Value: "completed",	
+		},
 		{
 			Name: "INSTANCE_IP",
 			ValueFrom: &corev1.EnvVarSource{
