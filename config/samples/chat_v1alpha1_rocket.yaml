@@ -5,17 +5,34 @@ metadata:
   namespace: default
 spec:
   version: "3.18"
+  adminSpec: 
+    username: "test"
+    email: "test@test"
+---
+
+apiVersion: chat.accso.de/v1alpha1
+kind: Rocket
+metadata:
+ name: rocket-sample-no-versions
+ namespace: default
+spec:
+  adminSpec: 
+    username: "test"
+    email: "test@test"
 
 ---
 
-#apiVersion: chat.accso.de/v1alpha1
-#kind: Rocket
-#metadata:
-#  name: rocket-sample-high-aval
-#  namespace: default
-#spec:
-#  replicas: 3
-#  version: "3.18"
-#  database:
-#    replicas: 3
-#
+apiVersion: chat.accso.de/v1alpha1
+kind: Rocket
+metadata:
+ name: rocket-sample-high-aval
+ namespace: default
+spec:
+  adminSpec:
+    username: "test-abc"
+    email: "test@mail.com"
+  replicas: 3
+  version: "3.18"
+  database:
+    replicas: 3
+

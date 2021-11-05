@@ -138,7 +138,7 @@ var _ = Describe("Rocket controller", func() {
 
 				var names []string
 				for _, pod := range createdRocket.Status.Pods {
-					names = append(names, pod)
+					names = append(names, pod.Name)
 				}
 				return names, nil
 			}, timeout, interval).Should(ConsistOf(PodName), "should list our pod %s in the pods list in status", PodName)

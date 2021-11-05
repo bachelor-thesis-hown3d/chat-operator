@@ -40,8 +40,6 @@ type RocketDatabase struct {
 	// Replicas of Mongodb Instance
 	// +optional
 	Replicas int32 `json:"replicas,omitempty"`
-	// AdminSpec specifies the admin username and email
-	AdminSpec   *RocketAdminSpec               `json:"adminSpec"`
 	// StorageSpec embedds a PersistentVolumeClaim Template
 	// +kubebuilder:validation:EmbeddedResource
 	// +optional
@@ -51,9 +49,9 @@ type RocketDatabase struct {
 // RocketAdminSpec contains the email and username of the administrator
 type RocketAdminSpec struct {
 	// Email is the email of the administrator
-	Email string `json:"email"`
+	Email string `json:"email,omitempty"`
 	// Username is the Username of the administrator
-	Username string `json:"username"`
+	Username string `json:"username,omitempty"`
 }
 
 // EmbeddedPersistentVolumeClaim is an embedded version of k8s.io/api/core/corev1.PersistentVolumeClaim.
@@ -103,15 +101,16 @@ type EmbeddedObjectMetadata struct {
 	Annotations map[string]string `json:"annotations,omitempty" protobuf:"bytes,12,rep,name=annotations"`
 }
 
-
-
 // RocketSpec defines the desired state of Rocket
 type RocketSpec struct {
 	// Replicas specifies how many Webserver Pods shall be created
 	// +optional
 	Replicas int32 `json:"replicas,omitempty"`
 	// Version specifies the Rocket.Chat Container Image Version
-	Version  string         `json:"version"`
+	// +optional
+	Version string `json:"version,omitempty"`
+	// AdminSpec specifies the admin username and email
+	AdminSpec *RocketAdminSpec `json:"adminSpec,omitempty"`
 	// Database contains the specification for the mongodb Database
 	// +optional
 	Database RocketDatabase `json:"database,omitempty"`
@@ -123,24 +122,31 @@ type RocketStatus struct {
 	// Important: Run "make" to regenerate code after modifying this file
 
 	// Pods are the names of the Rocket.Chat Pods
-	Pods []EmbeddedPod `json:"pods"`
-	// WebserverVersion contains the current running version of the rocketchat webserver
-	WebserverVersion string `json:"webserverVersion"`
-	// DatabaseVersion contains the current running version of the mongodb database
-	DatabaseVersion string `json:"databaseVersion"`
+	// +optional
+	Pods []EmbeddedPod `json:"pods,omitempty"`
 	// Current phase of the operator.
-	Phase StatusPhase `json:"phase"`
+	Phase StatusPhase `json:"phase,omitempty"`
 	// Human-readable message indicating details about current operator phase or error.
-	Message string `json:"message"`
+	Message string `json:"message,omitempty"`
 	// True if all resources are in a ready state and all work is done.
-	Ready bool `json:"ready"`
+	Ready bool `json:"ready,omitempty"`
 	// External URL for accessing Rocket instance from outside the cluster.
+	// +optional
 	ExternalURL string `json:"externalURL,omitempty"`
+}
+
+// EmbeddedPod contains metadata and status of a pod
+type EmbeddedPod struct {
+	// Name of the Pod
+	Name string `json:"name,omitempty"`
 }
 
 // Rocket is the Schema for the rockets API
 // additional column for `kubectl get` output
-// +kubebuilder:printcolumn:name="Version",type=string,JSONPath=`.spec.status.webserverVersion`
+//+kubebuilder:printcolumn:name="Webserver Version",type=string,JSONPath=`.spec.version`
+//+kubebuilder:printcolumn:name="Database Version",type=string,JSONPath=`.spec.database.version`
+//+kubebuilder:printcolumn:name="Phase",type=string,JSONPath=`.status.phase`
+//+kubebuilder:printcolumn:name="Ready",type=bool,JSONPath=`.status.ready`
 //+kubebuilder:object:root=true
 //+kubebuilder:subresource:status
 type Rocket struct {
@@ -157,7 +163,7 @@ type Rocket struct {
 type RocketList struct {
 	metav1.TypeMeta `json:",inline"`
 	metav1.ListMeta `json:"metadata,omitempty"`
-	Items           []Rocket `json:"items"`
+	Items           []Rocket `json:"items,omitempty"`
 }
 
 func init() {

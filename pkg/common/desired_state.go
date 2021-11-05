@@ -13,9 +13,6 @@ func CreateDesiredState(clusterState *ClusterState, rocket *chatv1alpha1.Rocket)
 	mongodbServiceAction := getMongodbServiceDesiredState(clusterState, rocket)
 	mongodbHeadlessServiceAction := getMongodbHeadlessServiceDesiredState(clusterState, rocket)
 	mongodbStatefulSetAction := getMongodbStatefulsetDesiredState(clusterState, rocket)
-	rocketDeploymentAction := getRocketDeploymentDesiredState(clusterState, rocket)
-	rocketServiceAction := getRocketServiceDesiredState(clusterState, rocket)
-	rocketIngressAction := getRocketIngressDesiredState(clusterState, rocket)
 	desired.AddActions(
 		saAction,
 		mongodbAuthSecretAction,
@@ -23,15 +20,35 @@ func CreateDesiredState(clusterState *ClusterState, rocket *chatv1alpha1.Rocket)
 		mongodbHeadlessServiceAction,
 		mongodbServiceAction,
 		mongodbStatefulSetAction,
-		rocketDeploymentAction,
-		rocketServiceAction,
-		rocketIngressAction,
 	)
+	// only add deployment, when mongodb is ready
+	if ready, _ := IsStatefulSetReady(clusterState.MongodbStatefulSet); ready {
+		rocketAdminSecretAction := getRocketAdminSecretDesiredState(clusterState, rocket)
+		rocketDeploymentAction := getRocketDeploymentDesiredState(clusterState, rocket)
+		rocketServiceAction := getRocketServiceDesiredState(clusterState, rocket)
+		rocketIngressAction := getRocketIngressDesiredState(clusterState, rocket)
+		desired.AddActions(
+			rocketAdminSecretAction,
+			rocketDeploymentAction,
+			rocketServiceAction,
+			rocketIngressAction,
+		)
+	}
 	return desired
 }
+func getRocketAdminSecretDesiredState(clusterState *ClusterState, rocket *chatv1alpha1.Rocket) ClusterAction {
+	rocketAdminSecret := model.RocketAdminSecret(rocket)
 
+	if clusterState.RocketAdminSecret != nil {
+		return nil
+	}
+	return GenericCreateAction{
+		Object: rocketAdminSecret,
+		Msg:    "Create Rocket admin secret",
+	}
+}
 func getMongodbAuthSecretDesiredState(clusterState *ClusterState, rocket *chatv1alpha1.Rocket) ClusterAction {
-	mongodbAuthSecret := model.AuthSecret(rocket)
+	mongodbAuthSecret := model.MongodbAuthSecret(rocket)
 
 	if clusterState.MongodbAuthSecret != nil {
 		return nil

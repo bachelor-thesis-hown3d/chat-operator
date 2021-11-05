@@ -13,6 +13,7 @@ import (
 )
 
 func RocketDeployment(rocket *chatv1alpha1.Rocket) *appsv1.Deployment {
+	labels := util.MergeLabels(rocket.Labels, RocketDeploymentLabels(rocket))
 	replicas := rocket.Spec.Replicas
 	if replicas >= 0 {
 		replicas = 1
@@ -27,11 +28,11 @@ func RocketDeployment(rocket *chatv1alpha1.Rocket) *appsv1.Deployment {
 		Spec: appsv1.DeploymentSpec{
 			Replicas: &replicas,
 			Selector: &metav1.LabelSelector{
-				MatchLabels: rocketDeploymentLabels(rocket),
+				MatchLabels: labels,
 			},
 			Template: corev1.PodTemplateSpec{
 				ObjectMeta: metav1.ObjectMeta{
-					Labels: rocketDeploymentLabels(rocket),
+					Labels: labels,
 				},
 				Spec: corev1.PodSpec{
 					SecurityContext: &corev1.PodSecurityContext{
@@ -72,7 +73,7 @@ func RocketDeployment(rocket *chatv1alpha1.Rocket) *appsv1.Deployment {
 
 	return dep
 }
-func rocketDeploymentLabels(rocket *chatv1alpha1.Rocket) map[string]string {
+func RocketDeploymentLabels(rocket *chatv1alpha1.Rocket) map[string]string {
 	return map[string]string{
 		"app":       rocket.Name,
 		"component": RocketWebserverComponentName,
@@ -80,7 +81,7 @@ func rocketDeploymentLabels(rocket *chatv1alpha1.Rocket) map[string]string {
 }
 
 func rocketDeploymentEnvVars(rocket *chatv1alpha1.Rocket) []corev1.EnvVar {
-	authSecretReference := corev1.LocalObjectReference{Name: AuthSecretSelector(rocket).Name}
+	authSecretReference := corev1.LocalObjectReference{Name: MongodbAuthSecretSelector(rocket).Name}
 	return []corev1.EnvVar{
 		{
 			Name: "MONGO_OPLOG_URL",
@@ -100,10 +101,14 @@ func rocketDeploymentEnvVars(rocket *chatv1alpha1.Rocket) []corev1.EnvVar {
 				},
 			},
 		},
+		{
+			Name:  "OVERWRITE_SETTING_Show_Setup_Wizard",
+			Value: "completed",
+		},
 		// skips the inital setup wizard
 		{
-			Name: "OVERWRITE_SETTING_Show_Setup_Wizard",
-			Value: "completed",	
+			Name:  "OVERWRITE_SETTING_Show_Setup_Wizard",
+			Value: "completed",
 		},
 		{
 			Name: "INSTANCE_IP",
