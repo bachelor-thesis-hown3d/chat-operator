@@ -11,7 +11,7 @@ import (
 func RocketService(r *chatv1alpha1.Rocket) *corev1.Service {
 	service := &corev1.Service{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      r.Name + "-service",
+			Name:      r.Name + RocketWebserverServiceSuffix,
 			Namespace: r.Namespace,
 			Labels:    r.Labels,
 		},
@@ -30,7 +30,7 @@ func RocketService(r *chatv1alpha1.Rocket) *corev1.Service {
 
 func RocketServiceSelector(r *chatv1alpha1.Rocket) client.ObjectKey {
 	return client.ObjectKey{
-		Name:      r.Name + "-service",
+		Name:      r.Name + RocketWebserverServiceSuffix,
 		Namespace: r.Namespace,
 	}
 }

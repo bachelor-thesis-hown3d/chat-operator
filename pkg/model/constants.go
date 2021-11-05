@@ -2,19 +2,29 @@ package model
 
 // Constants for a rocket chat installation
 const (
-	MongodbComponentName  = "mongodb"
-	MongodbTargetPort     = "mongodb"
-	MongodbDefaultVersion = "4.4.6-debian-10-r29"
-	MongodbScriptPath     = "/scripts/setup.sh"
+	MongodbComponentName          = "mongodb"
+	MongodbTargetPort             = "mongodb"
+	MongodbDefaultVersion         = "4.4.10"
+	MongodbScriptPath             = "/scripts/setup.sh"
+	MongodbStatefulSetSuffix      = "-mongodb"
+	MongodbServiceSuffix          = "-mongodb-service"
+	MongodbHeadlessServiceSuffix  = "-mongodb-service-headless"
+	MongodbScriptsConfigmapSuffix = "-mongodb-scripts"
+	MongodbVolumeSuffix           = "-datadir"
+
+	AuthSecretSuffix = "-auth"
+
+	RocketWebserverComponentName    = "webserver"
+	RocketWebserverDeploymentSuffix = "-rocketchat"
+	RocketWebserverServiceSuffix    = "-rocketchat-service"
 )
 
 var (
-	RocketUser              = int64(999)
-	RocketGroup             = int64(999)
+	RocketWebserverUser     = int64(999)
+	RocketWebserverGroup    = int64(999)
 	MongodbScriptMode       = int32(0755)
 	MongodbUser             = int64(1001)
-	MongodbReadinessCommand = `
-# Run the proper check depending on the version
+	MongodbReadinessCommand = `# Run the proper check depending on the version
 [[ $(mongo --version | grep "MongoDB shell") =~ ([0-9]+\.[0-9]+\.[0-9]+) ]] && VERSION=${BASH_REMATCH[1]}
 . /opt/bitnami/scripts/libversion.sh
 VERSION_MAJOR="$(get_sematic_version "$VERSION" 1)"

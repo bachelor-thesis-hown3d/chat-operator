@@ -12,13 +12,13 @@ import (
 func MongodbScriptsConfigmap(r *chatv1alpha1.Rocket) *corev1.ConfigMap {
 	cm := &corev1.ConfigMap{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      r.Name + "mongodb-scripts",
+			Name:      r.Name + MongodbScriptsConfigmapSuffix,
 			Namespace: r.Namespace,
 			Labels:    r.Labels,
 		},
 		Data: map[string]string{
-			"setup.sh": fmt.Sprintf(`
-#!/bin/bash
+			"setup.sh": fmt.Sprintf(
+				`#!/bin/bash
 
 . /opt/bitnami/scripts/mongodb-env.sh
 
@@ -36,13 +36,13 @@ else
     export MONGODB_ROOT_PASSWORD_FILE="" MONGODB_USERNAME_FILE="" MONGODB_DATABASE_FILE="" MONGODB_PASSWORD_FILE=""
 fi
 
-exec /opt/bitnami/scripts/mongodb/entrypoint.sh /opt/bitnami/scripts/mongodb/run.sh`, r.Name+"mongodb")},
+exec /opt/bitnami/scripts/mongodb/entrypoint.sh /opt/bitnami/scripts/mongodb/run.sh`, r.Name+"-mongodb")},
 	}
 	return cm
 }
 func MongodbConfigmapSelector(r *chatv1alpha1.Rocket) client.ObjectKey {
 	return client.ObjectKey{
-		Name:      r.Name + "-mongodb-scripts",
+		Name:      r.Name + MongodbScriptsConfigmapSuffix,
 		Namespace: r.Namespace,
 	}
 }

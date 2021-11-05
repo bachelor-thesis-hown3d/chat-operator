@@ -96,10 +96,10 @@ fast-test:
 ##@ Build
 
 build: generate fmt vet ## Build manager binary.
-	go build -o bin/manager main.go
+	go build -o bin/manager -ldflags="-X util.version.Version=$(VERSION)" main.go 
 
 run: manifests generate fmt vet ## Run a controller from your host.
-	go run ./main.go
+	air -c .air.toml	
 
 docker-build: test ## Build docker image with the manager.
 	docker build -t ${IMG} .
@@ -108,8 +108,14 @@ docker-push: ## Push docker image with the manager.
 	docker push ${IMG}
 
 ##@ Deployment
-sample:
+
+quickstart: kind dashboard install deploy-sample run
+
+deploy-sample:
 	$(KUSTOMIZE) build config/samples | kubectl apply -f -
+
+undeploy-sample:
+	$(KUSTOMIZE) build config/samples | kubectl delete -f -
 
 install: manifests kustomize ## Install CRDs into the K8s cluster specified in ~/.kube/config.
 	$(KUSTOMIZE) build config/crd | kubectl apply -f -
@@ -124,6 +130,17 @@ deploy: manifests kustomize ## Deploy controller to the K8s cluster specified in
 undeploy: ## Undeploy controller from the K8s cluster specified in ~/.kube/config.
 	$(KUSTOMIZE) build config/default | kubectl delete -f -
 
+dashboard:
+	kubectl create secret generic kubernetes-dashboard-certs --from-file=hack/dashboard/certs -n kubernetes-dashboard || true
+	kubectl apply -f hack/dashboard/dashboard.yaml
+	echo "Access Dashboard on https://localhost:7070 with Access Token $(shell kubectl get secret/service-account-token -n kubernetes-dashboard -o template --template={{.data.token}} | base64 -d )"
+
+kind:
+	kind create cluster --config hack/kind.yaml
+	kubectl wait --for=condition=Ready=true node --all --timeout=2m
+
+teardown:
+	kind delete cluster --name chat-operator-cluster
 
 CONTROLLER_GEN = $(shell pwd)/bin/controller-gen
 controller-gen: ## Download controller-gen locally if necessary.

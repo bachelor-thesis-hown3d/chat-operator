@@ -33,6 +33,7 @@ type ClusterState struct {
 	MongodbScriptConfigmap *corev1.ConfigMap
 	MongodbStatefulSet     *appsv1.StatefulSet
 	MongodbService         *corev1.Service
+	MongodbHeadlessService *corev1.Service
 	RocketDeployment       *appsv1.Deployment
 	RocketService          *corev1.Service
 	RocketIngress          *networkingv1.Ingress
@@ -49,6 +50,10 @@ func (c *ClusterState) Read(context context.Context, r *chatv1alpha1.Rocket, con
 		return err
 	}
 	err = c.readMongodbScriptsConfigmap(context, r, controllerClient)
+	if err != nil {
+		return err
+	}
+	err = c.readMongodbHeadlessService(context, r, controllerClient)
 	if err != nil {
 		return err
 	}
@@ -78,8 +83,8 @@ func (c *ClusterState) Read(context context.Context, r *chatv1alpha1.Rocket, con
 }
 
 func (c *ClusterState) readMongodbAuthSecret(context context.Context, r *chatv1alpha1.Rocket, controllerClient client.Client) error {
-	mongodbSecret := model.MongodbSecret(r)
-	mongodbSecretSelector := model.MongodbSecretSelector(r)
+	mongodbSecret := model.AuthSecret(r)
+	mongodbSecretSelector := model.AuthSecretSelector(r)
 
 	err := controllerClient.Get(context, mongodbSecretSelector, mongodbSecret)
 
@@ -95,9 +100,10 @@ func (c *ClusterState) readMongodbAuthSecret(context context.Context, r *chatv1a
 	}
 	return nil
 }
+
 func (c *ClusterState) readMongodbService(context context.Context, r *chatv1alpha1.Rocket, controllerClient client.Client) error {
-	mongodbService := model.MongodbService(r)
-	mongodbServiceSelector := model.MongodbServiceSelector(r)
+	mongodbService := model.MongodbService(r, false)
+	mongodbServiceSelector := model.MongodbServiceSelector(r, false)
 
 	err := controllerClient.Get(context, mongodbServiceSelector, mongodbService)
 
@@ -113,6 +119,26 @@ func (c *ClusterState) readMongodbService(context context.Context, r *chatv1alph
 	}
 	return nil
 }
+
+func (c *ClusterState) readMongodbHeadlessService(context context.Context, r *chatv1alpha1.Rocket, controllerClient client.Client) error {
+	mongodbHeadlessService := model.MongodbService(r, true)
+	mongodbServiceSelector := model.MongodbServiceSelector(r, true)
+
+	err := controllerClient.Get(context, mongodbServiceSelector, mongodbHeadlessService)
+
+	if err != nil {
+		// If the resource type doesn't exist on the cluster or does exist but is not found
+		if metaErrors.IsNoMatchError(err) || apiErrors.IsNotFound(err) {
+			c.MongodbHeadlessService = nil
+		} else {
+			return err
+		}
+	} else {
+		c.MongodbHeadlessService = mongodbHeadlessService.DeepCopy()
+	}
+	return nil
+}
+
 func (c *ClusterState) readServiceAccount(context context.Context, r *chatv1alpha1.Rocket, controllerClient client.Client) error {
 	sa := model.ServiceAccount(r)
 	saSelector := model.ServiceAccountSelector(r)
@@ -207,6 +233,7 @@ func (c *ClusterState) readRocketIngress(context context.Context, r *chatv1alpha
 	}
 	return nil
 }
+
 func (c *ClusterState) readRocketService(context context.Context, r *chatv1alpha1.Rocket, controllerClient client.Client) error {
 	rocketService := model.RocketService(r)
 	rocketIngressSelector := model.RocketServiceSelector(r)

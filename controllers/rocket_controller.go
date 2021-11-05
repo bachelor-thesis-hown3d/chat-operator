@@ -18,6 +18,7 @@ package controllers
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"github.com/hown3d/chat-operator/pkg/common"
@@ -27,7 +28,6 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
 	runtimeClient "sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/log"
 
 	chatv1alpha1 "github.com/hown3d/chat-operator/api/v1alpha1"
 	corev1 "k8s.io/api/core/v1"
@@ -39,7 +39,10 @@ const (
 	RequeueDelayError = 5 * time.Second
 )
 
-var controllerLog = ctrl.Log.WithName("controllers").WithName("Rocket")
+var (
+	controllerLog = ctrl.Log.WithName("controllers").WithName("Rocket")
+	debugLog      = controllerLog.V(1)
+)
 
 // RocketReconciler reconciles a Rocket object
 type RocketReconciler struct {
@@ -73,45 +76,51 @@ func NewRocketReconciler(client runtimeClient.Client, scheme *runtime.Scheme, re
 // perform operations to make the cluster state reflect the state specified by
 // the user.
 //
-func (r *RocketReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
-	reqLogger := log.Log.WithValues("Request.Namespace", req.Namespace, "Request.Name", req.Name)
-	reqLogger.Info("Reconciling...")
-	// fetch rocket instance
+func (r *RocketReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	instance := &chatv1alpha1.Rocket{}
-	err := r.client.Get(r.ctx, req.NamespacedName, instance)
+	err := r.client.Get(ctx, req.NamespacedName, instance)
 	if err != nil {
 		// Request Object not found, could have been deleted after reconcile request
 		// return and dont requeue
 		if errors.IsNotFound(err) {
+			debugLog.Info("Rocket Object not found, might have been deleted", "object", req.NamespacedName)
 			return ctrl.Result{}, nil
 		}
 		// Error reading the object - requeue the request.
 		return ctrl.Result{}, err
 	}
 	// append default labels to rocketchat object
-	if instance.Labels == nil {
-		instance.Labels = util.DefaultLabels(instance.Name)
-	} else {
+	if !util.HasDefaultLabels(instance) {
+		debugLog.Info("No labels found, applying default labels", "object", req.NamespacedName)
+		// create a copy of the original to provide for the patch
+		patch := runtimeClient.MergeFrom(instance.DeepCopy())
 		instance.Labels = util.MergeLabels(instance.Labels, util.DefaultLabels(instance.Name))
-	}
-	// read current Cluster State
-	currentState := &common.ClusterState{}
-	err = currentState.Read(r.ctx, instance, r.client)
-	if err != nil {
-		return r.manageError(instance, err)
+		// update the rocket instance and requeue
+		err := r.client.Patch(ctx, instance, patch)
+		if err != nil {
+			return r.manageError(ctx, instance, err)
+		}
+		return ctrl.Result{Requeue: true}, nil
 	}
 
-	desiredState := r.setDesiredState(currentState, instance)
-	actionRunner := common.NewClusterActionRunner(r.ctx, r.client, r.scheme, instance, &controllerLog)
+	// read current Cluster State
+	currentState := &common.ClusterState{}
+	err = currentState.Read(ctx, instance, r.client)
+	if err != nil {
+		return r.manageError(ctx, instance, err)
+	}
+
+	desiredState := common.CreateDesiredState(currentState, instance)
+	actionRunner := common.NewClusterActionRunner(ctx, r.client, r.scheme, instance)
 	err = actionRunner.RunAll(desiredState)
 	if err != nil {
-		return r.manageError(instance, err)
+		return r.manageError(ctx, instance, err)
 	}
-	return r.manageSuccess(instance, currentState)
+	return r.manageSuccess(ctx, instance, currentState)
 
 }
 
-func (r *RocketReconciler) updatePodNames(instance *chatv1alpha1.Rocket) error {
+func (r *RocketReconciler) updatePodNames(ctx context.Context, instance *chatv1alpha1.Rocket) error {
 	var podNames []string
 	// Update the rocket status with the pod names.
 	// List the pods for this CR's deployment.
@@ -120,27 +129,28 @@ func (r *RocketReconciler) updatePodNames(instance *chatv1alpha1.Rocket) error {
 		runtimeClient.InNamespace(instance.Namespace),
 		runtimeClient.MatchingLabels(instance.Labels),
 	}
-	if err := r.client.List(r.ctx, podList, listOpts...); err != nil {
+	if err := r.client.List(ctx, podList, listOpts...); err != nil {
 		return err
 	}
 
 	// Update status.Pods if needed.
 	for _, pod := range podList.Items {
+		debugLog.Info(fmt.Sprintf("Adding pod %v to instance status", pod.Name), "object", instance.Name)
 		podNames = append(podNames, pod.Name)
 	}
 	instance.Status.Pods = podNames
 	return nil
 }
 
-func (r *RocketReconciler) manageError(instance *chatv1alpha1.Rocket, issue error) (ctrl.Result, error) {
+func (r *RocketReconciler) manageError(ctx context.Context, instance *chatv1alpha1.Rocket, issue error) (ctrl.Result, error) {
 	r.recorder.Event(instance, "Warning", "ProcessingError", issue.Error())
 
 	instance.Status.Message = issue.Error()
 	instance.Status.Ready = false
 
-	err := r.client.Status().Update(r.ctx, instance)
+	err := r.client.Status().Update(ctx, instance)
 	if err != nil {
-		controllerLog.Error(err, "unable to update status of rocketchat %v", instance.Name)
+		controllerLog.Error(err, "unable to update status", "object", instance.Name)
 	}
 
 	return ctrl.Result{
@@ -149,18 +159,18 @@ func (r *RocketReconciler) manageError(instance *chatv1alpha1.Rocket, issue erro
 	}, nil
 }
 
-func (r *RocketReconciler) manageSuccess(instance *chatv1alpha1.Rocket, currentState *common.ClusterState) (ctrl.Result, error) {
+func (r *RocketReconciler) manageSuccess(ctx context.Context, instance *chatv1alpha1.Rocket, currentState *common.ClusterState) (ctrl.Result, error) {
 	// Check if the resources are ready
 	resourcesReady, err := currentState.IsResourcesReady(instance)
 	if err != nil {
-		return r.manageError(instance, err)
+		return r.manageError(ctx, instance, err)
 	}
 
 	instance.Status.Ready = resourcesReady
 	instance.Status.Message = "Sucessfull"
-	err = r.updatePodNames(instance)
+	err = r.updatePodNames(ctx, instance)
 	if err != nil {
-		return r.manageError(instance, err)
+		return r.manageError(ctx, instance, err)
 	}
 
 	// If resources are ready and we have not errored before now, we are in a reconciling phase
@@ -175,16 +185,16 @@ func (r *RocketReconciler) manageSuccess(instance *chatv1alpha1.Rocket, currentS
 	//	instance.Status.ExternalURL = ingress.Status.
 	//}
 
-	err = r.client.Status().Update(r.ctx, instance)
+	err = r.client.Status().Update(ctx, instance)
 	if err != nil {
-		controllerLog.Error(err, "unable to update status")
+		controllerLog.Error(err, "unable to update status", "object", instance.Name)
 		return ctrl.Result{
 			RequeueAfter: RequeueDelayError,
 			Requeue:      true,
 		}, nil
 	}
 
-	controllerLog.Info("desired cluster state met")
+	debugLog.Info("desired cluster state met")
 	return ctrl.Result{RequeueAfter: RequeueDelay}, nil
 }
 
