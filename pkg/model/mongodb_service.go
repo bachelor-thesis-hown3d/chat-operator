@@ -9,7 +9,15 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-func MongodbService(r *chatv1alpha1.Rocket, headless bool) *corev1.Service {
+type MongodbServiceCreator struct {
+	Headless bool
+}
+
+// Name returns the ressource action of the MongodbAuthSecretCreator
+func (m *MongodbServiceCreator) Name() string {
+	return "Mongodb Service"
+}
+func (c *MongodbServiceCreator) CreateResource(r *chatv1alpha1.Rocket) client.Object {
 	labels := util.MergeLabels(r.Labels, mongodbStatefulSetLabels(r))
 	svc := &corev1.Service{
 		ObjectMeta: metav1.ObjectMeta{
@@ -28,7 +36,7 @@ func MongodbService(r *chatv1alpha1.Rocket, headless bool) *corev1.Service {
 			Selector: labels,
 		},
 	}
-	if headless {
+	if c.Headless {
 		svc.Name = r.Name + MongodbHeadlessServiceSuffix
 		svc.Spec.ClusterIP = "None"
 		svc.Spec.PublishNotReadyAddresses = true
@@ -36,12 +44,12 @@ func MongodbService(r *chatv1alpha1.Rocket, headless bool) *corev1.Service {
 	return svc
 }
 
-func MongodbServiceSelector(r *chatv1alpha1.Rocket, headless bool) client.ObjectKey {
+func (c *MongodbServiceCreator) Selector(r *chatv1alpha1.Rocket) client.ObjectKey {
 	key := client.ObjectKey{
 		Name:      r.Name + MongodbServiceSuffix,
 		Namespace: r.Namespace,
 	}
-	if headless {
+	if c.Headless {
 		key.Name = r.Name + MongodbHeadlessServiceSuffix
 	}
 	return key

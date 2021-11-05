@@ -12,7 +12,13 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-func RocketDeployment(rocket *chatv1alpha1.Rocket) *appsv1.Deployment {
+type RocketDeploymentCreator struct{}
+
+// Name returns the ressource action of the RocketDeploymentCreator
+func (m *RocketDeploymentCreator) Name() string {
+	return "Rocket Deployment"
+}
+func (creator *RocketDeploymentCreator) CreateResource(rocket *chatv1alpha1.Rocket) client.Object {
 	labels := util.MergeLabels(rocket.Labels, RocketDeploymentLabels(rocket))
 	replicas := rocket.Spec.Replicas
 	if replicas >= 0 {
@@ -81,7 +87,8 @@ func RocketDeploymentLabels(rocket *chatv1alpha1.Rocket) map[string]string {
 }
 
 func rocketDeploymentEnvVars(rocket *chatv1alpha1.Rocket) []corev1.EnvVar {
-	authSecretReference := corev1.LocalObjectReference{Name: MongodbAuthSecretSelector(rocket).Name}
+	secretCreator := &MongodbAuthSecretCreator{}
+	authSecretReference := corev1.LocalObjectReference{Name: secretCreator.Selector(rocket).Name}
 	return []corev1.EnvVar{
 		{
 			Name: "MONGO_OPLOG_URL",
@@ -121,7 +128,7 @@ func rocketDeploymentEnvVars(rocket *chatv1alpha1.Rocket) []corev1.EnvVar {
 	}
 }
 
-func RocketDeploymentSelector(rocket *chatv1alpha1.Rocket) client.ObjectKey {
+func (creator *RocketDeploymentCreator) Selector(rocket *chatv1alpha1.Rocket) client.ObjectKey {
 	return client.ObjectKey{
 		Name:      rocket.Name + RocketWebserverDeploymentSuffix,
 		Namespace: rocket.Namespace,

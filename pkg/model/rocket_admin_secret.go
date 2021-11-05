@@ -8,7 +8,13 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-func RocketAdminSecret(r *chatv1alpha1.Rocket) *corev1.Secret {
+type RocketAdminSecretCreator struct{}
+
+// Name returns the ressource action of the RocketAdminSecretCreator
+func (m *RocketAdminSecretCreator) Name() string {
+	return "Rocket Admin Secret"
+}
+func (c *RocketAdminSecretCreator) CreateResource(r *chatv1alpha1.Rocket) client.Object {
 	secret := &corev1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      r.Name + RocketAdminSecretSuffix,
@@ -21,7 +27,7 @@ func RocketAdminSecret(r *chatv1alpha1.Rocket) *corev1.Secret {
 	}
 	return secret
 }
-func RocketAdminSecretSelector(r *chatv1alpha1.Rocket) client.ObjectKey {
+func (c *RocketAdminSecretCreator) Selector(r *chatv1alpha1.Rocket) client.ObjectKey {
 	return client.ObjectKey{
 		Name:      r.Name + RocketAdminSecretSuffix,
 		Namespace: r.Namespace,

@@ -7,20 +7,27 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-func ServiceAccount(r *chatv1alpha1.Rocket) *corev1.ServiceAccount {
-	authSecretSelector := MongodbAuthSecretSelector(r)
+type ServiceAccountCreator struct{}
+
+// Name returns the ressource action of the RocketServiceCreator
+func (m *ServiceAccountCreator) Name() string {
+	return "Service Account"
+}
+func (c *ServiceAccountCreator) CreateResource(r *chatv1alpha1.Rocket) client.Object {
+	secretCreator := new(MongodbAuthSecretCreator)
+	secretSelector := secretCreator.Selector(r)
 	sa := &corev1.ServiceAccount{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      r.Name,
 			Namespace: r.Namespace,
 			Labels:    r.Labels,
 		},
-		Secrets: []corev1.ObjectReference{{Name: authSecretSelector.Name, Namespace: authSecretSelector.Namespace}},
+		Secrets: []corev1.ObjectReference{{Name: secretSelector.Name, Namespace: secretSelector.Namespace}},
 	}
 	return sa
 }
 
-func ServiceAccountSelector(r *chatv1alpha1.Rocket) client.ObjectKey {
+func (c *ServiceAccountCreator) Selector(r *chatv1alpha1.Rocket) client.ObjectKey {
 	return client.ObjectKey{
 		Name:      r.Name,
 		Namespace: r.Namespace,

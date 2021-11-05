@@ -36,8 +36,9 @@ import (
 )
 
 const (
-	RequeueDelay      = 30 * time.Second
-	RequeueDelayError = 5 * time.Second
+	RequeueDelay                  = 30 * time.Second
+	RequeueDelayResourcesNotReady = 5 * time.Second
+	RequeueDelayError             = 5 * time.Second
 )
 
 var (
@@ -112,8 +113,11 @@ func (r *RocketReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 		return ctrl.Result{Requeue: true}, nil
 	}
 	// read current Cluster State
-	currentState := &common.ClusterState{}
-	err = currentState.Read(ctx, instance, r.client)
+	currentState, err := common.NewCurrentStateReader(ctx, r.client, instance)
+	if err != nil {
+		return r.manageError(ctx, instance, err)
+	}
+	err = currentState.Read()
 	if err != nil {
 		return r.manageError(ctx, instance, err)
 	}
@@ -183,7 +187,7 @@ func (r *RocketReconciler) manageError(ctx context.Context, instance *chatv1alph
 	}, nil
 }
 
-func (r *RocketReconciler) manageSuccess(ctx context.Context, instance *chatv1alpha1.Rocket, currentState *common.ClusterState) (ctrl.Result, error) {
+func (r *RocketReconciler) manageSuccess(ctx context.Context, instance *chatv1alpha1.Rocket, currentState *common.ClusterStateReader) (ctrl.Result, error) {
 	// Check if the resources are ready
 	resourcesReady, err := currentState.IsResourcesReady(instance)
 	if err != nil {
@@ -217,9 +221,13 @@ func (r *RocketReconciler) manageSuccess(ctx context.Context, instance *chatv1al
 			Requeue:      true,
 		}, nil
 	}
+	if resourcesReady {
+		debugLog.Info("desired cluster state met")
+		return ctrl.Result{RequeueAfter: RequeueDelay}, nil
 
-	debugLog.Info("desired cluster state met")
-	return ctrl.Result{RequeueAfter: RequeueDelay}, nil
+	}
+	debugLog.Info("desired cluster state met, but not all resources ready yet")
+	return ctrl.Result{RequeueAfter: RequeueDelayResourcesNotReady}, nil
 }
 
 // SetupWithManager sets up the controller with the Manager.

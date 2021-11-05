@@ -9,7 +9,13 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-func MongodbScriptsConfigmap(r *chatv1alpha1.Rocket) *corev1.ConfigMap {
+type MongodbScriptsConfigmapCreator struct{}
+
+// Name returns the ressource action of the MongodbAuthSecretCreator
+func (m *MongodbScriptsConfigmapCreator) Name() string {
+	return "Mongodb Script Configmap"
+}
+func (c *MongodbScriptsConfigmapCreator) CreateResource(r *chatv1alpha1.Rocket) client.Object {
 	cm := &corev1.ConfigMap{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      r.Name + MongodbScriptsConfigmapSuffix,
@@ -40,7 +46,7 @@ exec /opt/bitnami/scripts/mongodb/entrypoint.sh /opt/bitnami/scripts/mongodb/run
 	}
 	return cm
 }
-func MongodbConfigmapSelector(r *chatv1alpha1.Rocket) client.ObjectKey {
+func (c *MongodbScriptsConfigmapCreator) Selector(r *chatv1alpha1.Rocket) client.ObjectKey {
 	return client.ObjectKey{
 		Name:      r.Name + MongodbScriptsConfigmapSuffix,
 		Namespace: r.Namespace,

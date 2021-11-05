@@ -37,26 +37,26 @@ func NewClusterActionRunner(context context.Context, client runtimeClient.Client
 	}
 }
 
-func (i *ClusterActionRunner) RunAll(desiredState *DesiredClusterState) error {
+func (runner *ClusterActionRunner) RunAll(desiredState *DesiredClusterState) error {
 	for index, action := range desiredState.actions {
-		msg, err := action.Run(i)
+		msg, err := action.Run(runner)
 		if err != nil {
 			actionLogger.Info(fmt.Sprintf("(%5d) %10s %s : %s", index, "FAILED", msg, err))
 			return err
 		}
-		actionLogger.Info(fmt.Sprintf("(%5d) %10s %s", index, "SUCCESS", msg), "object", i.parent.GetName())
+		actionLogger.Info(fmt.Sprintf("(%5d) %10s %s", index, "SUCCESS", msg), "object", runner.parent.GetName())
 	}
 
 	return nil
 }
 
-func (i *ClusterActionRunner) Create(obj runtimeClient.Object) error {
-	err := controllerutil.SetControllerReference(i.parent.(metav1.Object), obj.(metav1.Object), i.scheme)
+func (runner *ClusterActionRunner) Create(obj runtimeClient.Object) error {
+	err := controllerutil.SetControllerReference(runner.parent.(metav1.Object), obj.(metav1.Object), runner.scheme)
 	if err != nil {
 		return err
 	}
 
-	err = i.client.Create(i.context, obj)
+	err = runner.client.Create(runner.context, obj)
 	if err != nil {
 		return err
 	}
@@ -64,13 +64,13 @@ func (i *ClusterActionRunner) Create(obj runtimeClient.Object) error {
 	return nil
 }
 
-func (i *ClusterActionRunner) Update(obj runtimeClient.Object) error {
-	err := controllerutil.SetControllerReference(i.parent.(metav1.Object), obj.(metav1.Object), i.scheme)
+func (runner *ClusterActionRunner) Update(obj runtimeClient.Object) error {
+	err := controllerutil.SetControllerReference(runner.parent.(metav1.Object), obj.(metav1.Object), runner.scheme)
 	if err != nil {
 		return err
 	}
 
-	return i.client.Update(i.context, obj)
+	return runner.client.Update(runner.context, obj)
 }
 
 // An action to create generic kubernetes resources
@@ -87,10 +87,10 @@ type GenericUpdateAction struct {
 	Msg string
 }
 
-func (i GenericCreateAction) Run(runner *ClusterActionRunner) (string, error) {
-	return i.Msg, runner.Create(i.Object)
+func (action GenericCreateAction) Run(runner *ClusterActionRunner) (string, error) {
+	return action.Msg, runner.Create(action.Object)
 }
 
-func (i GenericUpdateAction) Run(runner *ClusterActionRunner) (string, error) {
-	return i.Msg, runner.Update(i.Object)
+func (action GenericUpdateAction) Run(runner *ClusterActionRunner) (string, error) {
+	return action.Msg, runner.Update(action.Object)
 }
