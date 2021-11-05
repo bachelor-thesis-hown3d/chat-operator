@@ -9,36 +9,48 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-func MongodbStatefulSet(r *chatv1alpha1.Rocket) *appsv1.StatefulSet {
-	d := r.Spec.Database
+func MongodbStatefulSet(rocket *chatv1alpha1.Rocket) *appsv1.StatefulSet {
+	replicas := rocket.Spec.Database.Replicas
+	liveness, readiness := mongodbStatefulsetHealthChecks()
+	labels := mongodbStatefulSetLabels(rocket)
+	d := rocket.Spec.Database
 	if d.Version == "" {
 		d.Version = MongodbDefaultVersion
 	}
 	sts := &appsv1.StatefulSet{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      r.Name + "-mongodb",
-			Namespace: r.Namespace,
-			Labels:    r.Labels,
+			Name:      rocket.Name + MongodbStatefulSetSuffix,
+			Namespace: rocket.Namespace,
+			Labels:    rocket.Labels,
 		},
 		Spec: appsv1.StatefulSetSpec{
+			Replicas:    &replicas,
+			ServiceName: rocket.Name + MongodbHeadlessServiceSuffix,
+			Selector: &metav1.LabelSelector{
+				MatchLabels: labels,
+			},
 			Template: corev1.PodTemplateSpec{
-				ObjectMeta: metav1.ObjectMeta{},
+				ObjectMeta: metav1.ObjectMeta{
+					Labels: labels,
+				},
 				Spec: corev1.PodSpec{
 					Volumes: []corev1.Volume{{
 						Name: "scripts",
 						VolumeSource: corev1.VolumeSource{
 							ConfigMap: &corev1.ConfigMapVolumeSource{
 								LocalObjectReference: corev1.LocalObjectReference{
-									Name: MongodbConfigmapSelector(r).Name,
+									Name: MongodbConfigmapSelector(rocket).Name,
 								},
-								DefaultMode: &MongodbScriptMode,
+								// 0 Prefix will assure the number is octal
+								DefaultMode: util.CreatePointerInt32(0775),
 							},
 						},
 					}},
+					ServiceAccountName: rocket.Name,
 					Containers: []corev1.Container{
 						{
 							Name:    "mongodb",
-							Image:   "docker.io/bitnami/mongodb" + d.Version,
+							Image:   "docker.io/bitnami/mongodb:" + d.Version,
 							Command: []string{MongodbScriptPath},
 							Ports: []corev1.ContainerPort{
 								{
@@ -46,11 +58,11 @@ func MongodbStatefulSet(r *chatv1alpha1.Rocket) *appsv1.StatefulSet {
 									ContainerPort: 27017,
 								},
 							},
-							Env:       mongoEnvVars(r),
+							Env:       mongodbEnvVars(rocket),
 							Resources: corev1.ResourceRequirements{},
 							VolumeMounts: []corev1.VolumeMount{
 								{
-									Name:      "datadir",
+									Name:      rocket.Name + MongodbVolumeSuffix,
 									MountPath: "/bitnami/mongodb",
 								},
 								{
@@ -59,18 +71,8 @@ func MongodbStatefulSet(r *chatv1alpha1.Rocket) *appsv1.StatefulSet {
 									SubPath:   "setup.sh",
 								},
 							},
-							ReadinessProbe: &corev1.Probe{
-								Handler: corev1.Handler{Exec: &corev1.ExecAction{Command: []string{
-									"bash", "-ec", MongodbReadinessCommand,
-								}}},
-								InitialDelaySeconds: 5,
-							},
-							LivenessProbe: &corev1.Probe{
-								Handler: corev1.Handler{Exec: &corev1.ExecAction{Command: []string{
-									"mongo", "--disableImplicitSessions", "--eval", "\"db.adminCommand('ping')\"",
-								}}},
-								InitialDelaySeconds: 30,
-							},
+							ReadinessProbe: readiness,
+							LivenessProbe:  liveness,
 							SecurityContext: &corev1.SecurityContext{
 								RunAsUser:    &MongodbUser,
 								RunAsNonRoot: &boolTrue,
@@ -86,15 +88,15 @@ func MongodbStatefulSet(r *chatv1alpha1.Rocket) *appsv1.StatefulSet {
 	storageSpec := d.StorageSpec
 	if storageSpec == nil {
 		sts.Spec.Template.Spec.Volumes = append(sts.Spec.Template.Spec.Volumes, corev1.Volume{
-			Name: r.Name,
+			Name: rocket.Name + MongodbVolumeSuffix,
 			VolumeSource: corev1.VolumeSource{
 				EmptyDir: &corev1.EmptyDirVolumeSource{},
 			},
 		})
 	} else {
-		pvcTemplate := util.MakeVolumeClaimTemplate(*storageSpec)
+		pvcTemplate := VolumeClaimTemplate(*storageSpec)
 		if pvcTemplate.Name == "" {
-			pvcTemplate.Name = r.Name + "-mongodb"
+			pvcTemplate.Name = rocket.Name + MongodbVolumeSuffix
 		}
 		if storageSpec.Spec.AccessModes == nil {
 			pvcTemplate.Spec.AccessModes = []corev1.PersistentVolumeAccessMode{corev1.ReadWriteOnce}
@@ -110,13 +112,36 @@ func MongodbStatefulSet(r *chatv1alpha1.Rocket) *appsv1.StatefulSet {
 
 func MongodbStatefulSetSelector(r *chatv1alpha1.Rocket) client.ObjectKey {
 	return client.ObjectKey{
-		Name:      r.Name + "-mongodb",
+		Name:      r.Name + MongodbStatefulSetSuffix,
 		Namespace: r.Namespace,
 	}
 }
 
-func mongoEnvVars(r *chatv1alpha1.Rocket) []corev1.EnvVar {
-	authSecretRef := corev1.LocalObjectReference{MongodbSecretSelector(r).Name}
+func mongodbStatefulsetHealthChecks() (liveness, readiness *corev1.Probe) {
+	liveness = &corev1.Probe{
+		Handler: corev1.Handler{Exec: &corev1.ExecAction{Command: []string{
+			"mongo", "--disableImplicitSessions", "--eval", "db.adminCommand('ping')",
+		}}},
+		InitialDelaySeconds: 30,
+	}
+	readiness = &corev1.Probe{
+		Handler: corev1.Handler{Exec: &corev1.ExecAction{Command: []string{
+			"bash", "-ec", MongodbReadinessCommand,
+		}}},
+		InitialDelaySeconds: 5,
+	}
+	return
+}
+
+func mongodbStatefulSetLabels(r *chatv1alpha1.Rocket) map[string]string {
+	return map[string]string{
+		"app":       r.Name,
+		"component": MongodbComponentName,
+	}
+}
+
+func mongodbEnvVars(r *chatv1alpha1.Rocket) []corev1.EnvVar {
+	authSecretRef := corev1.LocalObjectReference{Name: AuthSecretSelector(r).Name}
 	return []corev1.EnvVar{
 		{
 			Name: "MY_POD_NAME",
@@ -136,7 +161,7 @@ func mongoEnvVars(r *chatv1alpha1.Rocket) []corev1.EnvVar {
 		},
 		{
 			Name:  "K8S_SERVICE_NAME",
-			Value: r.Name + "-mongodb-service",
+			Value: r.Name + MongodbHeadlessServiceSuffix,
 		},
 		{
 			Name:  "MONGODB_INITIAL_PRIMARY_HOST",
@@ -155,7 +180,7 @@ func mongoEnvVars(r *chatv1alpha1.Rocket) []corev1.EnvVar {
 			ValueFrom: &corev1.EnvVarSource{
 				SecretKeyRef: &corev1.SecretKeySelector{
 					LocalObjectReference: authSecretRef,
-					Key:                  "username",
+					Key:                  "user",
 				},
 			},
 		}, {

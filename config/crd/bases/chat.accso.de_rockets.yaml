@@ -38,6 +38,10 @@ spec:
             properties:
               database:
                 properties:
+                  replicas:
+                    description: Replicas of Mongodb Instance
+                    format: int32
+                    type: integer
                   storageSpec:
                     description: EmbeddedPersistentVolumeClaim is an embedded version
                       of k8s.io/api/core/corev1.PersistentVolumeClaim. It contains
@@ -279,26 +283,42 @@ spec:
                     type: string
                 type: object
               replicas:
-                description: Replicas specifies how many Pods shall be created
+                description: Replicas specifies how many Webserver Pods shall be created
                 format: int32
                 type: integer
               version:
                 description: Version specifies the Rocket.Chat Container Image Version
                 type: string
             required:
-            - replicas
             - version
             type: object
           status:
             description: RocketStatus defines the observed state of Rocket
             properties:
+              externalURL:
+                description: External URL for accessing Rocket instance from outside
+                  the cluster.
+                type: string
+              message:
+                description: Human-readable message indicating details about current
+                  operator phase or error.
+                type: string
+              phase:
+                description: Current phase of the operator.
+                type: string
               pods:
                 description: Nodes are the names of the Rocket.Chat Pods
                 items:
                   type: string
                 type: array
+              ready:
+                description: True if all resources are in a ready state and all work
+                  is done.
+                type: boolean
             required:
-            - pods
+            - message
+            - phase
+            - ready
             type: object
         type: object
     served: true

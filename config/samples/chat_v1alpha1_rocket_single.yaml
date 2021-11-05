@@ -1,0 +1,8 @@
+apiVersion: chat.accso.de/v1alpha1
+kind: Rocket
+metadata:
+  name: rocket-sample-2
+  namespace: default
+spec:
+  version: "3.18"
+

@@ -34,7 +34,9 @@ var (
 // NOTE: json tags are required.  Any new fields you add must have json tags for the fields to be serialized.
 
 type RocketDatabase struct {
-	Version     string                         `json:"version,omitempty"`
+	Version string `json:"version,omitempty"`
+	// Replicas of Mongodb Instance
+	Replicas    int32                          `json:"replicas,omitempty"`
 	StorageSpec *EmbeddedPersistentVolumeClaim `json:"storageSpec,omitempty"`
 }
 
@@ -90,11 +92,11 @@ type RocketSpec struct {
 	// INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
 	// Important: Run "make" to regenerate code after modifying this file
 
-	// Replicas specifies how many Pods shall be created
-	Replicas int32 `json:"replicas"`
+	// Replicas specifies how many Webserver Pods shall be created
+	Replicas int32 `json:"replicas,omitempty"`
 	// Version specifies the Rocket.Chat Container Image Version
-	Version  string          `json:"version"`
-	Database *RocketDatabase `json:"database,omitempty"`
+	Version  string         `json:"version"`
+	Database RocketDatabase `json:"database,omitempty"`
 }
 
 // RocketStatus defines the observed state of Rocket
@@ -103,14 +105,14 @@ type RocketStatus struct {
 	// Important: Run "make" to regenerate code after modifying this file
 
 	// Nodes are the names of the Rocket.Chat Pods
-	Pods []string `json:"pods"`
+	Pods []string `json:"pods,omitempty"`
 	// Current phase of the operator.
 	Phase StatusPhase `json:"phase"`
 	// Human-readable message indicating details about current operator phase or error.
 	Message string `json:"message"`
 	// True if all resources are in a ready state and all work is done.
 	Ready bool `json:"ready"`
-	// External URL for accessing Keycloak instance from outside the cluster. Is identical to external.URL if it's specified, otherwise is computed (e.g. from Ingress).
+	// External URL for accessing Rocket instance from outside the cluster.
 	ExternalURL string `json:"externalURL,omitempty"`
 }
 
@@ -122,8 +124,8 @@ type Rocket struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
-	Spec   *RocketSpec   `json:"spec,omitempty"`
-	Status *RocketStatus `json:"status,omitempty"`
+	Spec   RocketSpec   `json:"spec,omitempty"`
+	Status RocketStatus `json:"status,omitempty"`
 }
 
 //+kubebuilder:object:root=true

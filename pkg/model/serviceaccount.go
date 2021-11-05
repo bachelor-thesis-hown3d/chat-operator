@@ -8,7 +8,7 @@ import (
 )
 
 func ServiceAccount(r *chatv1alpha1.Rocket) *corev1.ServiceAccount {
-	authSecretSelector := MongodbSecretSelector(r)
+	authSecretSelector := AuthSecretSelector(r)
 	sa := &corev1.ServiceAccount{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      r.Name,

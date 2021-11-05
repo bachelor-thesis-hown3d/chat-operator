@@ -8,6 +8,8 @@ import (
 )
 
 func RocketIngress(r *chatv1alpha1.Rocket) *networkingv1.Ingress {
+	ingressPathType := networkingv1.PathTypeImplementationSpecific
+
 	return &networkingv1.Ingress{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      r.Name,
@@ -23,7 +25,8 @@ func RocketIngress(r *chatv1alpha1.Rocket) *networkingv1.Ingress {
 						HTTP: &networkingv1.HTTPIngressRuleValue{
 							Paths: []networkingv1.HTTPIngressPath{
 								{
-									Path: "/",
+									Path:     "/",
+									PathType: &ingressPathType,
 									Backend: networkingv1.IngressBackend{
 										Service: &networkingv1.IngressServiceBackend{
 											Name: RocketServiceSelector(r).Name,

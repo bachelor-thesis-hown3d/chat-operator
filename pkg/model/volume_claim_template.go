@@ -1,4 +1,4 @@
-package util
+package model
 
 import (
 	chatv1alpha1 "github.com/hown3d/chat-operator/api/v1alpha1"
@@ -6,7 +6,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-func MakeVolumeClaimTemplate(t chatv1alpha1.EmbeddedPersistentVolumeClaim) *corev1.PersistentVolumeClaim {
+func VolumeClaimTemplate(t chatv1alpha1.EmbeddedPersistentVolumeClaim) *corev1.PersistentVolumeClaim {
 	pvc := corev1.PersistentVolumeClaim{
 		TypeMeta: metav1.TypeMeta{
 			APIVersion: t.APIVersion,

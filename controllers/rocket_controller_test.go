@@ -50,7 +50,7 @@ var _ = Describe("Rocket controller", func() {
 					Name:      RocketName,
 					Namespace: RocketNamespace,
 				},
-				Spec: &chatv1alpha1.RocketSpec{Replicas: 1},
+				Spec: chatv1alpha1.RocketSpec{Replicas: 1},
 			}
 			Expect(k8sClient.Create(ctx, rocket)).Should(Succeed())
 
@@ -97,7 +97,7 @@ var _ = Describe("Rocket controller", func() {
 				This ensures that the test Job belongs to, and is tracked by, our test Rocket.
 				Once that’s done, we create our new Job instance.
 			*/
-			By("By creating a new Job")
+			By("By creating a new Pod")
 			labels := util.DefaultLabels(RocketName)
 			testPod := &corev1.Pod{
 				ObjectMeta: metav1.ObjectMeta{
