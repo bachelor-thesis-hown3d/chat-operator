@@ -34,10 +34,26 @@ var (
 // NOTE: json tags are required.  Any new fields you add must have json tags for the fields to be serialized.
 
 type RocketDatabase struct {
+	// Version of the Mongodb Containers, matches a Tag from https://hub.docker.com/r/bitnami/mongodb repository
+	// +optional
 	Version string `json:"version,omitempty"`
 	// Replicas of Mongodb Instance
-	Replicas    int32                          `json:"replicas,omitempty"`
+	// +optional
+	Replicas int32 `json:"replicas,omitempty"`
+	// AdminSpec specifies the admin username and email
+	AdminSpec   *RocketAdminSpec               `json:"adminSpec"`
+	// StorageSpec embedds a PersistentVolumeClaim Template
+	// +kubebuilder:validation:EmbeddedResource
+	// +optional
 	StorageSpec *EmbeddedPersistentVolumeClaim `json:"storageSpec,omitempty"`
+}
+
+// RocketAdminSpec contains the email and username of the administrator
+type RocketAdminSpec struct {
+	// Email is the email of the administrator
+	Email string `json:"email"`
+	// Username is the Username of the administrator
+	Username string `json:"username"`
 }
 
 // EmbeddedPersistentVolumeClaim is an embedded version of k8s.io/api/core/corev1.PersistentVolumeClaim.
@@ -87,15 +103,17 @@ type EmbeddedObjectMetadata struct {
 	Annotations map[string]string `json:"annotations,omitempty" protobuf:"bytes,12,rep,name=annotations"`
 }
 
+
+
 // RocketSpec defines the desired state of Rocket
 type RocketSpec struct {
-	// INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
-	// Important: Run "make" to regenerate code after modifying this file
-
 	// Replicas specifies how many Webserver Pods shall be created
+	// +optional
 	Replicas int32 `json:"replicas,omitempty"`
 	// Version specifies the Rocket.Chat Container Image Version
 	Version  string         `json:"version"`
+	// Database contains the specification for the mongodb Database
+	// +optional
 	Database RocketDatabase `json:"database,omitempty"`
 }
 
@@ -104,8 +122,12 @@ type RocketStatus struct {
 	// INSERT ADDITIONAL STATUS FIELD - define observed state of cluster
 	// Important: Run "make" to regenerate code after modifying this file
 
-	// Nodes are the names of the Rocket.Chat Pods
-	Pods []string `json:"pods,omitempty"`
+	// Pods are the names of the Rocket.Chat Pods
+	Pods []EmbeddedPod `json:"pods"`
+	// WebserverVersion contains the current running version of the rocketchat webserver
+	WebserverVersion string `json:"webserverVersion"`
+	// DatabaseVersion contains the current running version of the mongodb database
+	DatabaseVersion string `json:"databaseVersion"`
 	// Current phase of the operator.
 	Phase StatusPhase `json:"phase"`
 	// Human-readable message indicating details about current operator phase or error.
@@ -116,10 +138,11 @@ type RocketStatus struct {
 	ExternalURL string `json:"externalURL,omitempty"`
 }
 
+// Rocket is the Schema for the rockets API
+// additional column for `kubectl get` output
+// +kubebuilder:printcolumn:name="Version",type=string,JSONPath=`.spec.status.webserverVersion`
 //+kubebuilder:object:root=true
 //+kubebuilder:subresource:status
-
-// Rocket is the Schema for the rockets API
 type Rocket struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`

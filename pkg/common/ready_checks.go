@@ -17,8 +17,16 @@ func IsStatefulSetReady(statefulSet *appsv1.StatefulSet) (bool, error) {
 	return numOfReplicasMatch && allReplicasReady && revisionsMatch, nil
 }
 
+// IsDeploymentReady checks if a deployment is ready.
+// The function checks wether the ReadyReplicas match the wanted Replicas and no replicaFailure condition exists
 func IsDeploymentReady(deployment *appsv1.Deployment) (bool, error) {
 	if deployment == nil {
+		return false, nil
+	}
+	// if the desired Replica doesnt match the ReadyReplicas in Status, deployment isn't ready
+	numOfReplicasMatch := *deployment.Spec.Replicas == deployment.Status.Replicas
+	allReplicasReady := deployment.Status.Replicas == deployment.Status.ReadyReplicas
+	if !numOfReplicasMatch || !allReplicasReady {
 		return false, nil
 	}
 	// A deployment has an array of conditions
@@ -26,10 +34,7 @@ func IsDeploymentReady(deployment *appsv1.Deployment) (bool, error) {
 		// One failure condition exists, if this exists, return the Reason
 		if condition.Type == appsv1.DeploymentReplicaFailure {
 			return false, errors.Errorf(condition.Reason)
-			// A successful deployment will have the progressing condition type as true
-		} else if condition.Type == appsv1.DeploymentProgressing && condition.Status != "True" {
-			return false, nil
-		}
+		} 
 	}
 	return true, nil
 }
