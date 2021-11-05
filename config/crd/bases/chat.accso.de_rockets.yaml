@@ -16,10 +16,24 @@ spec:
     singular: rocket
   scope: Namespaced
   versions:
-  - name: v1alpha1
+  - additionalPrinterColumns:
+    - jsonPath: .spec.version
+      name: Webserver Version
+      type: string
+    - jsonPath: .spec.database.version
+      name: Database Version
+      type: string
+    - jsonPath: .status.phase
+      name: Phase
+      type: string
+    - jsonPath: .status.ready
+      name: Ready
+      type: bool
+    name: v1alpha1
     schema:
       openAPIV3Schema:
-        description: Rocket is the Schema for the rockets API
+        description: Rocket is the Schema for the rockets API additional column for
+          `kubectl get` output
         properties:
           apiVersion:
             description: 'APIVersion defines the versioned schema of this representation
@@ -36,29 +50,25 @@ spec:
           spec:
             description: RocketSpec defines the desired state of Rocket
             properties:
-              database:
+              adminSpec:
+                description: AdminSpec specifies the admin username and email
                 properties:
-                  adminSpec:
-                    description: AdminSpec specifies the admin username and email
-                    properties:
-                      email:
-                        description: Email is the email of the administrator
-                        type: string
-                      username:
-                        description: Username is the Username of the administrator
-                        type: string
-                    required:
-                    - email
-                    - username
-                    type: object
+                  email:
+                    description: Email is the email of the administrator
+                    type: string
+                  username:
+                    description: Username is the Username of the administrator
+                    type: string
+                type: object
+              database:
+                description: Database contains the specification for the mongodb Database
+                properties:
                   replicas:
                     description: Replicas of Mongodb Instance
                     format: int32
                     type: integer
                   storageSpec:
-                    description: EmbeddedPersistentVolumeClaim is an embedded version
-                      of k8s.io/api/core/corev1.PersistentVolumeClaim. It contains
-                      TypeMeta and a reduced ObjectMeta.
+                    description: StorageSpec embedds a PersistentVolumeClaim Template
                     properties:
                       apiVersion:
                         description: 'APIVersion defines the versioned schema of this
@@ -292,10 +302,11 @@ spec:
                             type: string
                         type: object
                     type: object
+                    x-kubernetes-embedded-resource: true
                   version:
+                    description: Version of the Mongodb Containers, matches a Tag
+                      from https://hub.docker.com/r/bitnami/mongodb repository
                     type: string
-                required:
-                - adminSpec
                 type: object
               replicas:
                 description: Replicas specifies how many Webserver Pods shall be created
@@ -304,8 +315,6 @@ spec:
               version:
                 description: Version specifies the Rocket.Chat Container Image Version
                 type: string
-            required:
-            - version
             type: object
           status:
             description: RocketStatus defines the observed state of Rocket
@@ -322,18 +331,19 @@ spec:
                 description: Current phase of the operator.
                 type: string
               pods:
-                description: Nodes are the names of the Rocket.Chat Pods
+                description: Pods are the names of the Rocket.Chat Pods
                 items:
-                  type: string
+                  description: EmbeddedPod contains metadata and status of a pod
+                  properties:
+                    name:
+                      description: Name of the Pod
+                      type: string
+                  type: object
                 type: array
               ready:
                 description: True if all resources are in a ready state and all work
                   is done.
                 type: boolean
-            required:
-            - message
-            - phase
-            - ready
             type: object
         type: object
     served: true

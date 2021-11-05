@@ -22,6 +22,7 @@ import (
 	"time"
 
 	"github.com/hown3d/chat-operator/pkg/common"
+	"github.com/hown3d/chat-operator/pkg/model"
 	"github.com/hown3d/chat-operator/pkg/util"
 
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -89,20 +90,27 @@ func (r *RocketReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 		// Error reading the object - requeue the request.
 		return ctrl.Result{}, err
 	}
-	// append default labels to rocketchat object
-	if !util.HasDefaultLabels(instance) {
-		debugLog.Info("No labels found, applying default labels", "object", req.NamespacedName)
-		// create a copy of the original to provide for the patch
-		patch := runtimeClient.MergeFrom(instance.DeepCopy())
-		instance.Labels = util.MergeLabels(instance.Labels, util.DefaultLabels(instance.Name))
-		// update the rocket instance and requeue
-		err := r.client.Patch(ctx, instance, patch)
+	// set Default Versions if none specified
+	if r.setVersionsIfEmpty(instance) {
+		err := r.client.Update(ctx, instance)
 		if err != nil {
 			return r.manageError(ctx, instance, err)
 		}
 		return ctrl.Result{Requeue: true}, nil
 	}
 
+	// append default labels to rocketchat object
+	if !util.HasDefaultLabels(instance) {
+		debugLog.Info("No labels found, applying default labels", "object", req.NamespacedName)
+		// create a copy of the original to provide for the patch
+		instance.Labels = util.MergeLabels(instance.Labels, util.DefaultLabels(instance.Name))
+		// update the rocket instance and requeue
+		err := r.client.Update(ctx, instance)
+		if err != nil {
+			return r.manageError(ctx, instance, err)
+		}
+		return ctrl.Result{Requeue: true}, nil
+	}
 	// read current Cluster State
 	currentState := &common.ClusterState{}
 	err = currentState.Read(ctx, instance, r.client)
@@ -120,8 +128,8 @@ func (r *RocketReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 
 }
 
-func (r *RocketReconciler) updatePodNames(ctx context.Context, instance *chatv1alpha1.Rocket) error {
-	var podNames []string
+func (r *RocketReconciler) setStatusPods(ctx context.Context, instance *chatv1alpha1.Rocket) error {
+	var statusPods []chatv1alpha1.EmbeddedPod
 	// Update the rocket status with the pod names.
 	// List the pods for this CR's deployment.
 	podList := &corev1.PodList{}
@@ -135,11 +143,27 @@ func (r *RocketReconciler) updatePodNames(ctx context.Context, instance *chatv1a
 
 	// Update status.Pods if needed.
 	for _, pod := range podList.Items {
-		debugLog.Info(fmt.Sprintf("Adding pod %v to instance status", pod.Name), "object", instance.Name)
-		podNames = append(podNames, pod.Name)
+		statusPods = append(statusPods, chatv1alpha1.EmbeddedPod{Name: pod.Name})
 	}
-	instance.Status.Pods = podNames
+	debugLog.Info(fmt.Sprintf("Setting instance status pods to %v", statusPods), "object", instance.Name)
+	instance.Status.Pods = statusPods
 	return nil
+}
+
+// updates the versions of the rocket instance in the cluster to the default versions if none is specified
+// returns true if a versions had to be updated
+func (r *RocketReconciler) setVersionsIfEmpty(instance *chatv1alpha1.Rocket) bool {
+	var dbVersionEmpty, webserverVersionEmpty = false, false
+	if instance.Spec.Version == "" {
+		instance.Spec.Version = model.RocketWebserverDefaultVersion
+		webserverVersionEmpty = true
+	}
+	if instance.Spec.Database.Version == "" {
+		instance.Spec.Database.Version = model.MongodbDefaultVersion
+		dbVersionEmpty = true
+	}
+	// return empty result if no patch was needed
+	return webserverVersionEmpty || dbVersionEmpty
 }
 
 func (r *RocketReconciler) manageError(ctx context.Context, instance *chatv1alpha1.Rocket, issue error) (ctrl.Result, error) {
@@ -167,8 +191,8 @@ func (r *RocketReconciler) manageSuccess(ctx context.Context, instance *chatv1al
 	}
 
 	instance.Status.Ready = resourcesReady
-	instance.Status.Message = "Sucessfull"
-	err = r.updatePodNames(ctx, instance)
+	instance.Status.Message = "Successfull"
+	err = r.setStatusPods(ctx, instance)
 	if err != nil {
 		return r.manageError(ctx, instance, err)
 	}

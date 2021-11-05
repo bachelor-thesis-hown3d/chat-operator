@@ -11,10 +11,11 @@ const (
 	MongodbHeadlessServiceSuffix  = "-mongodb-service-headless"
 	MongodbScriptsConfigmapSuffix = "-mongodb-scripts"
 	MongodbVolumeSuffix           = "-datadir"
+	MongodbAuthSecretSuffix = "-mongodb-auth"
 
-	AuthSecretSuffix = "-auth"
-
+	RocketAdminSecretSuffix = "-admin"
 	RocketWebserverComponentName    = "webserver"
+	RocketWebserverDefaultVersion   = "3.18"
 	RocketWebserverDeploymentSuffix = "-rocketchat"
 	RocketWebserverServiceSuffix    = "-rocketchat-service"
 )

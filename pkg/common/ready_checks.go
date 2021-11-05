@@ -34,7 +34,7 @@ func IsDeploymentReady(deployment *appsv1.Deployment) (bool, error) {
 		// One failure condition exists, if this exists, return the Reason
 		if condition.Type == appsv1.DeploymentReplicaFailure {
 			return false, errors.Errorf(condition.Reason)
-		} 
+		}
 	}
 	return true, nil
 }

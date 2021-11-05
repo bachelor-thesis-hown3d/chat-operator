@@ -9,6 +9,9 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	networkingv1 "k8s.io/api/networking/v1"
 	apiErrors "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	metaErrors "k8s.io/apimachinery/pkg/api/meta"
@@ -36,6 +39,7 @@ type ClusterState struct {
 	MongodbHeadlessService *corev1.Service
 	RocketDeployment       *appsv1.Deployment
 	RocketService          *corev1.Service
+	RocketAdminSecret      *corev1.Secret
 	RocketIngress          *networkingv1.Ingress
 	ServiceAccount         *corev1.ServiceAccount
 }
@@ -77,14 +81,43 @@ func (c *ClusterState) Read(context context.Context, r *chatv1alpha1.Rocket, con
 	if err != nil {
 		return err
 	}
+	err = c.readRocketAdminSecret(context, r, controllerClient)
+	if err != nil {
+		return err
+	}
 
 	// Read other things
 	return nil
 }
 
+func (c *ClusterState) readObjectState(
+	ctx context.Context,
+	stateObject *client.Object,
+	rocket *chatv1alpha1.Rocket,
+	controllerClient client.Client,
+	resourceFunc func(*chatv1alpha1.Rocket) client.Object,
+	resourceSelectorFunc func(*chatv1alpha1.Rocket) types.NamespacedName,
+) error {
+	resource := resourceFunc(rocket)
+	selector := resourceSelectorFunc(rocket)
+	err := controllerClient.Get(ctx, selector, resource)
+
+	if err != nil {
+		// If the resource type doesn't exist on the cluster or does exist but is not found
+		if metaErrors.IsNoMatchError(err) || apiErrors.IsNotFound(err) {
+			stateObject = nil
+		} else {
+			return err
+		}
+	} else {
+		stateObject = &resource
+	}
+	return nil
+}
+
 func (c *ClusterState) readMongodbAuthSecret(context context.Context, r *chatv1alpha1.Rocket, controllerClient client.Client) error {
-	mongodbSecret := model.AuthSecret(r)
-	mongodbSecretSelector := model.AuthSecretSelector(r)
+	mongodbSecret := model.MongodbAuthSecret(r)
+	mongodbSecretSelector := model.MongodbAuthSecretSelector(r)
 
 	err := controllerClient.Get(context, mongodbSecretSelector, mongodbSecret)
 
@@ -97,6 +130,25 @@ func (c *ClusterState) readMongodbAuthSecret(context context.Context, r *chatv1a
 		}
 	} else {
 		c.MongodbAuthSecret = mongodbSecret.DeepCopy()
+	}
+	return nil
+}
+
+func (c *ClusterState) readRocketAdminSecret(context context.Context, r *chatv1alpha1.Rocket, controllerClient client.Client) error {
+	rocketAdminSecret := model.RocketAdminSecret(r)
+	rocketAdminSecretSelector := model.RocketAdminSecretSelector(r)
+
+	err := controllerClient.Get(context, rocketAdminSecretSelector, rocketAdminSecret)
+
+	if err != nil {
+		// If the resource type doesn't exist on the cluster or does exist but is not found
+		if metaErrors.IsNoMatchError(err) || apiErrors.IsNotFound(err) {
+			c.MongodbAuthSecret = nil
+		} else {
+			return err
+		}
+	} else {
+		c.MongodbAuthSecret = rocketAdminSecret.DeepCopy()
 	}
 	return nil
 }

@@ -2,6 +2,7 @@ package model
 
 import (
 	chatv1alpha1 "github.com/hown3d/chat-operator/api/v1alpha1"
+	"github.com/hown3d/chat-operator/pkg/util"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/intstr"
@@ -9,11 +10,12 @@ import (
 )
 
 func MongodbService(r *chatv1alpha1.Rocket, headless bool) *corev1.Service {
+	labels := util.MergeLabels(r.Labels, mongodbStatefulSetLabels(r))
 	svc := &corev1.Service{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      r.Name + MongodbServiceSuffix,
 			Namespace: r.Namespace,
-			Labels:    r.Labels,
+			Labels:    labels,
 		},
 		Spec: corev1.ServiceSpec{
 			Ports: []corev1.ServicePort{
@@ -23,7 +25,7 @@ func MongodbService(r *chatv1alpha1.Rocket, headless bool) *corev1.Service {
 					TargetPort: intstr.FromString(MongodbTargetPort),
 				},
 			},
-			Selector: mongodbStatefulSetLabels(r),
+			Selector: labels,
 		},
 	}
 	if headless {

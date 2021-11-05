@@ -12,11 +12,8 @@ import (
 func MongodbStatefulSet(rocket *chatv1alpha1.Rocket) *appsv1.StatefulSet {
 	replicas := rocket.Spec.Database.Replicas
 	liveness, readiness := mongodbStatefulsetHealthChecks()
-	labels := mongodbStatefulSetLabels(rocket)
+	labels := util.MergeLabels(rocket.Labels, mongodbStatefulSetLabels(rocket))
 	d := rocket.Spec.Database
-	if d.Version == "" {
-		d.Version = MongodbDefaultVersion
-	}
 	sts := &appsv1.StatefulSet{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      rocket.Name + MongodbStatefulSetSuffix,
@@ -144,7 +141,7 @@ func mongodbStatefulSetLabels(r *chatv1alpha1.Rocket) map[string]string {
 }
 
 func mongodbEnvVars(r *chatv1alpha1.Rocket) []corev1.EnvVar {
-	authSecretRef := corev1.LocalObjectReference{Name: AuthSecretSelector(r).Name}
+	authSecretRef := corev1.LocalObjectReference{Name: MongodbAuthSecretSelector(r).Name}
 	return []corev1.EnvVar{
 		{
 			Name: "MY_POD_NAME",
