@@ -1,0 +1,21 @@
+apiVersion: chat.accso.de/v1alpha1
+kind: Rocket
+metadata:
+  name: rocket-sample-single
+  namespace: default
+spec:
+  version: "3.18"
+
+---
+
+#apiVersion: chat.accso.de/v1alpha1
+#kind: Rocket
+#metadata:
+#  name: rocket-sample-high-aval
+#  namespace: default
+#spec:
+#  replicas: 3
+#  version: "3.18"
+#  database:
+#    replicas: 3
+#

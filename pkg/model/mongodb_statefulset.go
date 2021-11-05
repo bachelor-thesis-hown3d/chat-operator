@@ -24,7 +24,6 @@ func MongodbStatefulSet(rocket *chatv1alpha1.Rocket) *appsv1.StatefulSet {
 			Labels:    rocket.Labels,
 		},
 		Spec: appsv1.StatefulSetSpec{
-			Replicas:    &replicas,
 			ServiceName: rocket.Name + MongodbHeadlessServiceSuffix,
 			Selector: &metav1.LabelSelector{
 				MatchLabels: labels,
@@ -82,6 +81,10 @@ func MongodbStatefulSet(rocket *chatv1alpha1.Rocket) *appsv1.StatefulSet {
 				},
 			},
 		},
+	}
+
+	if replicas != 0 {
+		sts.Spec.Replicas = &replicas
 	}
 
 	// Create volumes
