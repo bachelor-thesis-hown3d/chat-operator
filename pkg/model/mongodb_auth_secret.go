@@ -13,11 +13,11 @@ import (
 type MongodbAuthSecretCreator struct{}
 
 // Name returns the ressource action of the MongodbAuthSecretCreator
-func (m *MongodbAuthSecretCreator) Name() string {
+func (c *MongodbAuthSecretCreator) Name() string {
 	return "Mongodb Auth Secret"
 }
 
-func (m *MongodbAuthSecretCreator) CreateResource(rocket *chatv1alpha1.Rocket) client.Object {
+func (c *MongodbAuthSecretCreator) CreateResource(rocket *chatv1alpha1.Rocket) client.Object {
 	rootPassword := util.RandomString(25)
 	password := util.RandomString(25)
 	mongodbService := rocket.Name + MongodbServiceSuffix
@@ -38,9 +38,13 @@ func (m *MongodbAuthSecretCreator) CreateResource(rocket *chatv1alpha1.Rocket) c
 	}
 	return secret
 }
-func (m *MongodbAuthSecretCreator) Selector(rocket *chatv1alpha1.Rocket) client.ObjectKey {
+func (c *MongodbAuthSecretCreator) Selector(rocket *chatv1alpha1.Rocket) client.ObjectKey {
 	return client.ObjectKey{
 		Name:      rocket.Name + MongodbAuthSecretSuffix,
 		Namespace: rocket.Namespace,
 	}
+}
+func (c *MongodbAuthSecretCreator) Update(rocket *chatv1alpha1.Rocket, cur client.Object) (client.Object, bool) {
+	// never update auth secret!
+	return cur, false
 }

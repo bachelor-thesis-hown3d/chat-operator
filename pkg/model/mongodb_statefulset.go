@@ -1,6 +1,8 @@
 package model
 
 import (
+	"reflect"
+
 	chatv1alpha1 "github.com/hown3d/chat-operator/api/v1alpha1"
 	"github.com/hown3d/chat-operator/pkg/util"
 	appsv1 "k8s.io/api/apps/v1"
@@ -12,15 +14,51 @@ import (
 type MongodbStatefulSetCreator struct{}
 
 // Name returns the ressource action of the MongodbAuthSecretCreator
-func (m *MongodbStatefulSetCreator) Name() string {
+func (c *MongodbStatefulSetCreator) Name() string {
 	return "Mongodb StatefulSet"
 }
-func (m *MongodbStatefulSetCreator) CreateResource(rocket *chatv1alpha1.Rocket) client.Object {
+func (c *MongodbStatefulSetCreator) Update(rocket *chatv1alpha1.Rocket, cur client.Object) (client.Object, bool) {
+	update := false
+	sts := cur.(*appsv1.StatefulSet)
+
+	// check labels
+	d := rocket.Spec.Database
+	if !reflect.DeepEqual(sts.Labels, rocket.Labels) {
+		sts.Labels = rocket.Labels
+		update = true
+	}
+
+	// check image
+	curImage := sts.Spec.Template.Spec.Containers[0].Image
+	newImage := "docker.io/bitnami/mongodb:" + d.Version
+	if curImage != newImage {
+		sts.Spec.Template.Spec.Containers[0].Image = newImage
+		update = true
+	}
+
+	// check replicas
+	curReplicas := sts.Spec.Replicas
+	if *curReplicas != d.Replicas && d.Replicas > 0 {
+		sts.Spec.Replicas = &d.Replicas
+		update = true
+	}
+
+	// check storageSpec
+	copy := sts.DeepCopy()
+	createStatefulSetVolumes(rocket, d.StorageSpec, sts)
+	if !reflect.DeepEqual(copy, sts) {
+		update = true
+	}
+
+	return sts, update
+}
+
+func (c *MongodbStatefulSetCreator) CreateResource(rocket *chatv1alpha1.Rocket) client.Object {
 	replicas := rocket.Spec.Database.Replicas
 	liveness, readiness := mongodbStatefulsetHealthChecks()
-	labels := util.MergeLabels(rocket.Labels, mongodbStatefulSetLabels(rocket))
-	selector := new(MongodbScriptsConfigmapCreator).Selector(rocket)
+	labels := util.MergeLabels(mongodbStatefulSetLabels(rocket), rocket.Labels)
 	d := rocket.Spec.Database
+
 	sts := &appsv1.StatefulSet{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      rocket.Name + MongodbStatefulSetSuffix,
@@ -37,18 +75,6 @@ func (m *MongodbStatefulSetCreator) CreateResource(rocket *chatv1alpha1.Rocket) 
 					Labels: labels,
 				},
 				Spec: corev1.PodSpec{
-					Volumes: []corev1.Volume{{
-						Name: "scripts",
-						VolumeSource: corev1.VolumeSource{
-							ConfigMap: &corev1.ConfigMapVolumeSource{
-								LocalObjectReference: corev1.LocalObjectReference{
-									Name: selector.Name,
-								},
-								// 0 Prefix will assure the number is octal
-								DefaultMode: util.CreatePointerInt32(0775),
-							},
-						},
-					}},
 					ServiceAccountName: rocket.Name,
 					Containers: []corev1.Container{
 						{
@@ -87,37 +113,56 @@ func (m *MongodbStatefulSetCreator) CreateResource(rocket *chatv1alpha1.Rocket) 
 		},
 	}
 
-	if replicas != 0 {
+	if replicas > 0 {
 		sts.Spec.Replicas = &replicas
 	}
 
 	// Create volumes
-	storageSpec := d.StorageSpec
-	if storageSpec == nil {
-		sts.Spec.Template.Spec.Volumes = append(sts.Spec.Template.Spec.Volumes, corev1.Volume{
+	createStatefulSetVolumes(rocket, d.StorageSpec, sts)
+
+	return sts
+}
+
+func createStatefulSetVolumes(rocket *chatv1alpha1.Rocket, claimTemplate *chatv1alpha1.EmbeddedPersistentVolumeClaim, sts *appsv1.StatefulSet) {
+	var volumes []corev1.Volume
+	selector := new(MongodbScriptsConfigmapCreator).Selector(rocket)
+
+	volumes = append(volumes, corev1.Volume{Name: "scripts",
+		VolumeSource: corev1.VolumeSource{
+			ConfigMap: &corev1.ConfigMapVolumeSource{
+				LocalObjectReference: corev1.LocalObjectReference{
+					Name: selector.Name,
+				},
+				// 0 Prefix will assure the number is octal
+				DefaultMode: util.CreatePointerInt32(0775),
+			},
+		},
+	})
+
+	if claimTemplate == nil {
+		volumes = append(volumes, corev1.Volume{
 			Name: rocket.Name + MongodbVolumeSuffix,
 			VolumeSource: corev1.VolumeSource{
 				EmptyDir: &corev1.EmptyDirVolumeSource{},
 			},
 		})
-	} else {
-		pvcTemplate := VolumeClaimTemplate(*storageSpec)
-		if pvcTemplate.Name == "" {
-			pvcTemplate.Name = rocket.Name + MongodbVolumeSuffix
-		}
-		if storageSpec.Spec.AccessModes == nil {
-			pvcTemplate.Spec.AccessModes = []corev1.PersistentVolumeAccessMode{corev1.ReadWriteOnce}
-		} else {
-			pvcTemplate.Spec.AccessModes = storageSpec.Spec.AccessModes
-		}
-		pvcTemplate.Spec.Resources = storageSpec.Spec.Resources
-		pvcTemplate.Spec.Selector = storageSpec.Spec.Selector
-		sts.Spec.VolumeClaimTemplates = append(sts.Spec.VolumeClaimTemplates, *pvcTemplate)
+		sts.Spec.Template.Spec.Volumes = volumes
+		return
 	}
-	return sts
+
+	if claimTemplate.Name == "" {
+		claimTemplate.Name = rocket.Name + MongodbVolumeSuffix
+	}
+	if claimTemplate.Spec.AccessModes == nil {
+		claimTemplate.Spec.AccessModes = []corev1.PersistentVolumeAccessMode{corev1.ReadWriteOnce}
+	}
+	pvcTemplate := VolumeClaimTemplate(claimTemplate)
+	sts.Spec.VolumeClaimTemplates = []corev1.PersistentVolumeClaim{
+		*pvcTemplate,
+	}
 }
 
-func (m *MongodbStatefulSetCreator) Selector(r *chatv1alpha1.Rocket) client.ObjectKey {
+func (c *MongodbStatefulSetCreator) Selector(r *chatv1alpha1.Rocket) client.ObjectKey {
 	return client.ObjectKey{
 		Name:      r.Name + MongodbStatefulSetSuffix,
 		Namespace: r.Namespace,

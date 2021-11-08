@@ -2,51 +2,55 @@ package common
 
 import (
 	"context"
+	"fmt"
 
 	chatv1alpha1 "github.com/hown3d/chat-operator/api/v1alpha1"
 	"github.com/hown3d/chat-operator/pkg/model"
-	"sigs.k8s.io/controller-runtime/pkg/client"
+	runtimeClient "sigs.k8s.io/controller-runtime/pkg/client"
 
 	apiErrors "k8s.io/apimachinery/pkg/api/errors"
 )
 
 type ClusterStateReader struct {
 	// key is Name of the Object, value wether is exists
-	state    map[model.ResourceCreator]bool
-	client   client.Client
+	state    map[model.ResourceCreator]runtimeClient.Object
+	client   runtimeClient.Client
 	ctx      context.Context
 	instance *chatv1alpha1.Rocket
 }
 
-func NewCurrentStateReader(ctx context.Context, client client.Client, rocket *chatv1alpha1.Rocket) (*ClusterStateReader, error) {
+// NewCurrentStateReader creates a new CurrentStateReader with its state attached
+// state map wil be initialized with the resourceCreators and nil pointers to the resources
+// the Order of the resourceCreators inside the state will determine, in which order the resources will be created
+func NewCurrentStateReader(ctx context.Context, client runtimeClient.Client, rocket *chatv1alpha1.Rocket) (*ClusterStateReader, error) {
 	reader := &ClusterStateReader{
 		client:   client,
 		instance: rocket,
 		ctx:      ctx,
 	}
 	mongodbStsCreator := new(model.MongodbStatefulSetCreator)
-	reader.state = map[model.ResourceCreator]bool{
-		new(model.ServiceAccountCreator):              false,
-		new(model.MongodbAuthSecretCreator):           false,
-		new(model.MongodbScriptsConfigmapCreator):     false,
-		&model.MongodbServiceCreator{Headless: false}: false,
-		&model.MongodbServiceCreator{Headless: true}:  false,
-		mongodbStsCreator:                             false,
+	reader.state = map[model.ResourceCreator]runtimeClient.Object{
+		new(model.ServiceAccountCreator):              nil,
+		new(model.MongodbAuthSecretCreator):           nil,
+		new(model.MongodbScriptsConfigmapCreator):     nil,
+		&model.MongodbServiceCreator{Headless: false}: nil,
+		&model.MongodbServiceCreator{Headless: true}:  nil,
+		mongodbStsCreator:                             nil,
 	}
 
 	ready, err := reader.isStatefulSetReady(mongodbStsCreator, rocket)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("Error determining wether statefulSet %v is ready: %w", mongodbStsCreator.Name(), err)
 	}
 	if ready {
-		rocketActions := map[model.ResourceCreator]bool{
-			new(model.RocketAdminSecretCreator): false,
-			new(model.RocketDeploymentCreator):  false,
-			new(model.RocketServiceCreator):     false,
-			new(model.RocketIngressCreator):     false,
+		rocketState := map[model.ResourceCreator]runtimeClient.Object{
+			new(model.RocketAdminSecretCreator): nil,
+			new(model.RocketDeploymentCreator):  nil,
+			new(model.RocketServiceCreator):     nil,
+			new(model.RocketIngressCreator):     nil,
 		}
 		// merge into state map
-		for k, v := range rocketActions {
+		for k, v := range rocketState {
 			reader.state[k] = v
 		}
 	}
@@ -56,7 +60,7 @@ func (c *ClusterStateReader) Read() error {
 	for creator := range c.state {
 		err := c.readObjectState(creator)
 		if err != nil {
-			return err
+			return fmt.Errorf("Error reading object State from creator %v: %w", creator.Name(), err)
 		}
 	}
 	return nil
@@ -73,13 +77,13 @@ func (c *ClusterStateReader) readObjectState(
 	if err != nil {
 		// If the resource is not found
 		if apiErrors.IsNotFound(err) {
-			// set state of the resource to false, doesnt exists or no match
-			c.state[resourceCreator] = false
+			// set state of the resource to nil, doesnt exists or no match
+			c.state[resourceCreator] = nil
 			return nil
 		}
-		return err
+		return fmt.Errorf("Error reading resource %v from cluster: %w", resource.GetName(), err)
 	}
-	// set state of the resource to true, exists ands matches
-	c.state[resourceCreator] = true
+	// set state of the resource to a pointer to the resource, exists
+	c.state[resourceCreator] = resource
 	return nil
 }

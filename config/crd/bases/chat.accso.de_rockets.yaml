@@ -28,7 +28,7 @@ spec:
       type: string
     - jsonPath: .status.ready
       name: Ready
-      type: bool
+      type: boolean
     name: v1alpha1
     schema:
       openAPIV3Schema:

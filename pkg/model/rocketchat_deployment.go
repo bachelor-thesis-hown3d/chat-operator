@@ -2,6 +2,7 @@ package model
 
 import (
 	"fmt"
+	"reflect"
 
 	chatv1alpha1 "github.com/hown3d/chat-operator/api/v1alpha1"
 	"github.com/hown3d/chat-operator/pkg/util"
@@ -15,15 +16,41 @@ import (
 type RocketDeploymentCreator struct{}
 
 // Name returns the ressource action of the RocketDeploymentCreator
-func (m *RocketDeploymentCreator) Name() string {
+func (c *RocketDeploymentCreator) Name() string {
 	return "Rocket Deployment"
 }
-func (creator *RocketDeploymentCreator) CreateResource(rocket *chatv1alpha1.Rocket) client.Object {
-	labels := util.MergeLabels(rocket.Labels, RocketDeploymentLabels(rocket))
-	replicas := rocket.Spec.Replicas
-	if replicas >= 0 {
-		replicas = 1
+func (c *RocketDeploymentCreator) Update(rocket *chatv1alpha1.Rocket, cur client.Object) (client.Object, bool) {
+	update := false
+	dep := cur.(*appsv1.Deployment)
+
+	// check labels
+	if !reflect.DeepEqual(dep.Labels, rocket.Labels) {
+		dep.Labels = rocket.Labels
+		update = true
 	}
+
+	// check replicas
+	curReplicas := dep.Spec.Replicas
+	if *curReplicas != rocket.Spec.Replicas && rocket.Spec.Replicas > 0 {
+		dep.Spec.Replicas = &rocket.Spec.Replicas
+		update = true
+	}
+
+	// check image
+	// check image
+	curImage := dep.Spec.Template.Spec.Containers[0].Image
+	newImage := "rocket.chat:" + rocket.Spec.Version
+	if curImage != newImage {
+		dep.Spec.Template.Spec.Containers[0].Image = newImage
+		update = true
+	}
+
+	return dep, update
+}
+
+func (c *RocketDeploymentCreator) CreateResource(rocket *chatv1alpha1.Rocket) client.Object {
+	labels := util.MergeLabels(rocketDeploymentLabels(rocket), rocket.Labels)
+	replicas := rocket.Spec.Replicas
 
 	dep := &appsv1.Deployment{
 		ObjectMeta: metav1.ObjectMeta{
@@ -32,7 +59,6 @@ func (creator *RocketDeploymentCreator) CreateResource(rocket *chatv1alpha1.Rock
 			Labels:    rocket.Labels,
 		},
 		Spec: appsv1.DeploymentSpec{
-			Replicas: &replicas,
 			Selector: &metav1.LabelSelector{
 				MatchLabels: labels,
 			},
@@ -76,10 +102,13 @@ func (creator *RocketDeploymentCreator) CreateResource(rocket *chatv1alpha1.Rock
 			},
 		},
 	}
+	if replicas > 0 {
+		dep.Spec.Replicas = &replicas
+	}
 
 	return dep
 }
-func RocketDeploymentLabels(rocket *chatv1alpha1.Rocket) map[string]string {
+func rocketDeploymentLabels(rocket *chatv1alpha1.Rocket) map[string]string {
 	return map[string]string{
 		"app":       rocket.Name,
 		"component": RocketWebserverComponentName,
@@ -87,8 +116,10 @@ func RocketDeploymentLabels(rocket *chatv1alpha1.Rocket) map[string]string {
 }
 
 func rocketDeploymentEnvVars(rocket *chatv1alpha1.Rocket) []corev1.EnvVar {
-	secretCreator := &MongodbAuthSecretCreator{}
-	authSecretReference := corev1.LocalObjectReference{Name: secretCreator.Selector(rocket).Name}
+	authSecretCreator := new(MongodbAuthSecretCreator)
+	adminSecretCreator := new(RocketAdminSecretCreator)
+	authSecretReference := corev1.LocalObjectReference{Name: authSecretCreator.Selector(rocket).Name}
+	adminSecretReference := corev1.LocalObjectReference{Name: adminSecretCreator.Selector(rocket).Name}
 	return []corev1.EnvVar{
 		{
 			Name: "MONGO_OPLOG_URL",
@@ -108,14 +139,27 @@ func rocketDeploymentEnvVars(rocket *chatv1alpha1.Rocket) []corev1.EnvVar {
 				},
 			},
 		},
-		{
-			Name:  "OVERWRITE_SETTING_Show_Setup_Wizard",
-			Value: "completed",
-		},
 		// skips the inital setup wizard
 		{
 			Name:  "OVERWRITE_SETTING_Show_Setup_Wizard",
 			Value: "completed",
+		},
+		{
+			Name:  "ADMIN_USERNAME",
+			Value: rocket.Spec.AdminSpec.Username,
+		},
+		{
+			Name:  "ADMIN_EMAIL",
+			Value: rocket.Spec.AdminSpec.Email,
+		},
+		{
+			Name: "ADMIN_EMAIL",
+			ValueFrom: &corev1.EnvVarSource{
+				SecretKeyRef: &corev1.SecretKeySelector{
+					LocalObjectReference: adminSecretReference,
+					Key:                  "admin-password",
+				},
+			},
 		},
 		{
 			Name: "INSTANCE_IP",
@@ -128,7 +172,7 @@ func rocketDeploymentEnvVars(rocket *chatv1alpha1.Rocket) []corev1.EnvVar {
 	}
 }
 
-func (creator *RocketDeploymentCreator) Selector(rocket *chatv1alpha1.Rocket) client.ObjectKey {
+func (c *RocketDeploymentCreator) Selector(rocket *chatv1alpha1.Rocket) client.ObjectKey {
 	return client.ObjectKey{
 		Name:      rocket.Name + RocketWebserverDeploymentSuffix,
 		Namespace: rocket.Namespace,

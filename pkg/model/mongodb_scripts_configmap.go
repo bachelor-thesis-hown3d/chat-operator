@@ -2,6 +2,7 @@ package model
 
 import (
 	"fmt"
+	"reflect"
 
 	chatv1alpha1 "github.com/hown3d/chat-operator/api/v1alpha1"
 	corev1 "k8s.io/api/core/v1"
@@ -12,7 +13,7 @@ import (
 type MongodbScriptsConfigmapCreator struct{}
 
 // Name returns the ressource action of the MongodbAuthSecretCreator
-func (m *MongodbScriptsConfigmapCreator) Name() string {
+func (c *MongodbScriptsConfigmapCreator) Name() string {
 	return "Mongodb Script Configmap"
 }
 func (c *MongodbScriptsConfigmapCreator) CreateResource(r *chatv1alpha1.Rocket) client.Object {
@@ -46,6 +47,16 @@ exec /opt/bitnami/scripts/mongodb/entrypoint.sh /opt/bitnami/scripts/mongodb/run
 	}
 	return cm
 }
+func (c *MongodbScriptsConfigmapCreator) Update(rocket *chatv1alpha1.Rocket, cur client.Object) (client.Object, bool) {
+	update := false
+	cm := cur.(*corev1.ConfigMap)
+	if !reflect.DeepEqual(cm.Labels, rocket.Labels) {
+		cm.Labels = rocket.Labels
+		update = true
+	}
+	return cm, update
+}
+
 func (c *MongodbScriptsConfigmapCreator) Selector(r *chatv1alpha1.Rocket) client.ObjectKey {
 	return client.ObjectKey{
 		Name:      r.Name + MongodbScriptsConfigmapSuffix,

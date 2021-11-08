@@ -37,7 +37,7 @@ func NewClusterActionRunner(context context.Context, client runtimeClient.Client
 	}
 }
 
-func (runner *ClusterActionRunner) RunAll(desiredState *DesiredClusterState) error {
+func (runner *ClusterActionRunner) RunAll(desiredState *desiredClusterState) error {
 	for index, action := range desiredState.actions {
 		msg, err := action.Run(runner)
 		if err != nil {
@@ -53,12 +53,12 @@ func (runner *ClusterActionRunner) RunAll(desiredState *DesiredClusterState) err
 func (runner *ClusterActionRunner) Create(obj runtimeClient.Object) error {
 	err := controllerutil.SetControllerReference(runner.parent.(metav1.Object), obj.(metav1.Object), runner.scheme)
 	if err != nil {
-		return err
+		return fmt.Errorf("Error setting controller owner reference on resource %v to owner %v: %w", obj.GetName(), runner.parent.GetName(), err)
 	}
 
 	err = runner.client.Create(runner.context, obj)
 	if err != nil {
-		return err
+		return fmt.Errorf("Error creating resource %v: %w", obj.GetName(), err)
 	}
 
 	return nil

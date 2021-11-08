@@ -1,6 +1,8 @@
 package model
 
 import (
+	"reflect"
+
 	chatv1alpha1 "github.com/hown3d/chat-operator/api/v1alpha1"
 	"github.com/hown3d/chat-operator/pkg/util"
 	corev1 "k8s.io/api/core/v1"
@@ -17,12 +19,12 @@ type MongodbServiceCreator struct {
 func (m *MongodbServiceCreator) Name() string {
 	return "Mongodb Service"
 }
-func (c *MongodbServiceCreator) CreateResource(r *chatv1alpha1.Rocket) client.Object {
-	labels := util.MergeLabels(r.Labels, mongodbStatefulSetLabels(r))
+func (c *MongodbServiceCreator) CreateResource(rocket *chatv1alpha1.Rocket) client.Object {
+	labels := util.MergeLabels(mongodbStatefulSetLabels(rocket), rocket.Labels)
 	svc := &corev1.Service{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      r.Name + MongodbServiceSuffix,
-			Namespace: r.Namespace,
+			Name:      rocket.Name + MongodbServiceSuffix,
+			Namespace: rocket.Namespace,
 			Labels:    labels,
 		},
 		Spec: corev1.ServiceSpec{
@@ -37,7 +39,7 @@ func (c *MongodbServiceCreator) CreateResource(r *chatv1alpha1.Rocket) client.Ob
 		},
 	}
 	if c.Headless {
-		svc.Name = r.Name + MongodbHeadlessServiceSuffix
+		svc.Name = rocket.Name + MongodbHeadlessServiceSuffix
 		svc.Spec.ClusterIP = "None"
 		svc.Spec.PublishNotReadyAddresses = true
 	}
@@ -53,4 +55,15 @@ func (c *MongodbServiceCreator) Selector(r *chatv1alpha1.Rocket) client.ObjectKe
 		key.Name = r.Name + MongodbHeadlessServiceSuffix
 	}
 	return key
+}
+
+func (c *MongodbServiceCreator) Update(rocket *chatv1alpha1.Rocket, cur client.Object) (client.Object, bool) {
+	service := cur.(*corev1.Service)
+	labels := util.MergeLabels(mongodbStatefulSetLabels(rocket), rocket.Labels)
+	if reflect.DeepEqual(service.Labels, labels) {
+		return cur, false
+	}
+	service.Labels = labels
+	service.Spec.Selector = labels
+	return service, true
 }

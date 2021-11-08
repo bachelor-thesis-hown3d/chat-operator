@@ -1,6 +1,8 @@
 package model
 
 import (
+	"reflect"
+
 	chatv1alpha1 "github.com/hown3d/chat-operator/api/v1alpha1"
 	"github.com/hown3d/chat-operator/pkg/util"
 	corev1 "k8s.io/api/core/v1"
@@ -12,15 +14,30 @@ import (
 type RocketServiceCreator struct{}
 
 // Name returns the ressource action of the RocketServiceCreator
-func (m *RocketServiceCreator) Name() string {
+func (c *RocketServiceCreator) Name() string {
 	return "Rocket Service"
 }
-func (c *RocketServiceCreator) CreateResource(r *chatv1alpha1.Rocket) client.Object {
-	labels := util.MergeLabels(r.Labels, mongodbStatefulSetLabels(r))
+func (c *RocketServiceCreator) Update(rocket *chatv1alpha1.Rocket, cur client.Object) (client.Object, bool) {
+	update := false
+
+	service := cur.(*corev1.Service)
+	// check labels
+	labels := util.MergeLabels(rocketDeploymentLabels(rocket), rocket.Labels)
+	if !reflect.DeepEqual(service.Labels, labels) {
+		service.Labels = labels
+		service.Spec.Selector = labels
+		update = true
+	}
+
+	return service, update
+}
+
+func (c *RocketServiceCreator) CreateResource(rocket *chatv1alpha1.Rocket) client.Object {
+	labels := util.MergeLabels(rocketDeploymentLabels(rocket), rocket.Labels)
 	service := &corev1.Service{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      r.Name + RocketWebserverServiceSuffix,
-			Namespace: r.Namespace,
+			Name:      rocket.Name + RocketWebserverServiceSuffix,
+			Namespace: rocket.Namespace,
 			Labels:    labels,
 		},
 		Spec: corev1.ServiceSpec{

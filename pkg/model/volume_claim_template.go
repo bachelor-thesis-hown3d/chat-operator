@@ -6,7 +6,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-func VolumeClaimTemplate(t chatv1alpha1.EmbeddedPersistentVolumeClaim) *corev1.PersistentVolumeClaim {
+func VolumeClaimTemplate(t *chatv1alpha1.EmbeddedPersistentVolumeClaim) *corev1.PersistentVolumeClaim {
 	pvc := corev1.PersistentVolumeClaim{
 		TypeMeta: metav1.TypeMeta{
 			APIVersion: t.APIVersion,
