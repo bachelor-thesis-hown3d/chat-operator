@@ -11,9 +11,15 @@ import (
 type RocketAdminSecretCreator struct{}
 
 // Name returns the ressource action of the RocketAdminSecretCreator
-func (m *RocketAdminSecretCreator) Name() string {
+func (c *RocketAdminSecretCreator) Name() string {
 	return "Rocket Admin Secret"
 }
+
+func (c *RocketAdminSecretCreator) Update(rocket *chatv1alpha1.Rocket, cur client.Object) (client.Object, bool) {
+	// dont update secret
+	return cur, false
+}
+
 func (c *RocketAdminSecretCreator) CreateResource(r *chatv1alpha1.Rocket) client.Object {
 	secret := &corev1.Secret{
 		ObjectMeta: metav1.ObjectMeta{

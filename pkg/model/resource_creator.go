@@ -1,7 +1,7 @@
 package model
 
 import (
-	"github.com/hown3d/chat-operator/api/v1alpha1"
+	chatv1alpha1 "github.com/hown3d/chat-operator/api/v1alpha1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
@@ -9,6 +9,8 @@ import (
 type ResourceCreator interface {
 	// Name returns the ressource action of the Creator
 	Name() string
-	CreateResource(rocket *v1alpha1.Rocket) client.Object
-	Selector(rocket *v1alpha1.Rocket) client.ObjectKey
+	CreateResource(rocket *chatv1alpha1.Rocket) client.Object
+	Selector(rocket *chatv1alpha1.Rocket) client.ObjectKey
+	// Checks if a update is needed, returns true if so
+	Update(rocket *chatv1alpha1.Rocket, cur client.Object) (client.Object, bool)
 }

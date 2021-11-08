@@ -1,6 +1,7 @@
 package common
 
 import (
+	"fmt"
 	"reflect"
 
 	chatv1alpha1 "github.com/hown3d/chat-operator/api/v1alpha1"
@@ -34,7 +35,7 @@ func (c *ClusterStateReader) isStatefulSetReady(creator model.ResourceCreator, r
 // The function checks wether the ReadyReplicas match the wanted Replicas and no replicaFailure condition exists
 func (c *ClusterStateReader) isDeploymentReady(creator model.ResourceCreator, rocket *chatv1alpha1.Rocket) (bool, error) {
 	// Check Rocket Deployment is ready
-	var dep *appsv1.Deployment
+	dep := &appsv1.Deployment{}
 	selector := creator.Selector(rocket)
 	err := c.client.Get(c.ctx, selector, dep)
 	if err != nil {
@@ -59,17 +60,22 @@ func (c *ClusterStateReader) isDeploymentReady(creator model.ResourceCreator, ro
 	}
 	return true, nil
 }
-func (c *ClusterStateReader) IsResourcesReady(r *chatv1alpha1.Rocket) (bool, error) {
+
+// IsResourcesReady checks if the mongodb StatefulSet and the Rocketchat Deployment are ready
+func (c *ClusterStateReader) IsResourcesReady(rocket *chatv1alpha1.Rocket) (bool, error) {
 	var mongodbStatefulSetReady, rocketchatDeploymentReady bool
+	var err error
 	for creator := range c.state {
 		if val, ok := creator.(*model.MongodbStatefulSetCreator); ok {
-			mongodbStatefulSetReady, _ = c.isStatefulSetReady(val, r)
+			mongodbStatefulSetReady, err = c.isStatefulSetReady(val, rocket)
+			if err != nil {
+				return false, fmt.Errorf("Error determining if statefulSet is ready: %w", err)
+			}
 		}
 		if val, ok := creator.(*model.RocketDeploymentCreator); ok {
-			var err error
-			rocketchatDeploymentReady, err = c.isDeploymentReady(val, r)
+			rocketchatDeploymentReady, err = c.isDeploymentReady(val, rocket)
 			if err != nil {
-				return false, err
+				return false, fmt.Errorf("Error determining if deployment is ready: %w", err)
 			}
 		}
 	}

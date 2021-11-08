@@ -1,6 +1,8 @@
 package model
 
 import (
+	"reflect"
+
 	chatv1alpha1 "github.com/hown3d/chat-operator/api/v1alpha1"
 	networkingv1 "k8s.io/api/networking/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -10,9 +12,22 @@ import (
 type RocketIngressCreator struct{}
 
 // Name returns the ressource action of the RocketIngressCreator
-func (m *RocketIngressCreator) Name() string {
+func (c *RocketIngressCreator) Name() string {
 	return "Rocket Ingress"
 }
+func (c *RocketIngressCreator) Update(rocket *chatv1alpha1.Rocket, cur client.Object) (client.Object, bool) {
+	update := false
+
+	ingress := cur.(*networkingv1.Ingress)
+	// check labels
+	if !reflect.DeepEqual(ingress.Labels, rocket.Labels) {
+		ingress.Labels = rocket.Labels
+		update = true
+	}
+
+	return ingress, update
+}
+
 func (c *RocketIngressCreator) CreateResource(r *chatv1alpha1.Rocket) client.Object {
 	serviceSelector := new(RocketServiceCreator).Selector(r)
 	ingressPathType := networkingv1.PathTypeImplementationSpecific

@@ -1,6 +1,8 @@
 package model
 
 import (
+	"reflect"
+
 	chatv1alpha1 "github.com/hown3d/chat-operator/api/v1alpha1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -13,6 +15,20 @@ type ServiceAccountCreator struct{}
 func (m *ServiceAccountCreator) Name() string {
 	return "Service Account"
 }
+
+func (c *ServiceAccountCreator) Update(rocket *chatv1alpha1.Rocket, cur client.Object) (client.Object, bool) {
+	update := false
+
+	serviceAccount := cur.(*corev1.ServiceAccount)
+	// check labels
+	if !reflect.DeepEqual(serviceAccount.Labels, rocket.Labels) {
+		serviceAccount.Labels = rocket.Labels
+		update = true
+	}
+
+	return serviceAccount, update
+}
+
 func (c *ServiceAccountCreator) CreateResource(r *chatv1alpha1.Rocket) client.Object {
 	secretCreator := new(MongodbAuthSecretCreator)
 	secretSelector := secretCreator.Selector(r)

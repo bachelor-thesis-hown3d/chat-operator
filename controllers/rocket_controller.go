@@ -19,6 +19,7 @@ package controllers
 import (
 	"context"
 	"fmt"
+	"reflect"
 	"time"
 
 	"github.com/hown3d/chat-operator/pkg/common"
@@ -103,7 +104,6 @@ func (r *RocketReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 	// append default labels to rocketchat object
 	if !util.HasDefaultLabels(instance) {
 		debugLog.Info("No labels found, applying default labels", "object", req.NamespacedName)
-		// create a copy of the original to provide for the patch
 		instance.Labels = util.MergeLabels(instance.Labels, util.DefaultLabels(instance.Name))
 		// update the rocket instance and requeue
 		err := r.client.Update(ctx, instance)
@@ -122,7 +122,7 @@ func (r *RocketReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 		return r.manageError(ctx, instance, err)
 	}
 
-	desiredState := common.CreateDesiredState(currentState, instance)
+	desiredState := common.NewDesiredState(currentState, instance)
 	actionRunner := common.NewClusterActionRunner(ctx, r.client, r.scheme, instance)
 	err = actionRunner.RunAll(desiredState)
 	if err != nil {
@@ -147,10 +147,16 @@ func (r *RocketReconciler) setStatusPods(ctx context.Context, instance *chatv1al
 
 	// Update status.Pods if needed.
 	for _, pod := range podList.Items {
-		statusPods = append(statusPods, chatv1alpha1.EmbeddedPod{Name: pod.Name})
+		for _, condition := range pod.Status.Conditions {
+			if condition.Type == corev1.ContainersReady && pod.Status.Phase == corev1.PodRunning {
+				statusPods = append(statusPods, chatv1alpha1.EmbeddedPod{Name: pod.Name})
+			}
+		}
 	}
-	debugLog.Info(fmt.Sprintf("Setting instance status pods to %v", statusPods), "object", instance.Name)
-	instance.Status.Pods = statusPods
+	if !reflect.DeepEqual(statusPods, instance.Status.Pods) {
+		debugLog.Info(fmt.Sprintf("Setting instance status pods to %v", statusPods), "object", instance.Name)
+		instance.Status.Pods = statusPods
+	}
 	return nil
 }
 
@@ -171,6 +177,7 @@ func (r *RocketReconciler) setVersionsIfEmpty(instance *chatv1alpha1.Rocket) boo
 }
 
 func (r *RocketReconciler) manageError(ctx context.Context, instance *chatv1alpha1.Rocket, issue error) (ctrl.Result, error) {
+	controllerLog.Error(issue, "error while conciling", "object", instance.Name)
 	r.recorder.Event(instance, "Warning", "ProcessingError", issue.Error())
 
 	instance.Status.Message = issue.Error()
@@ -191,14 +198,14 @@ func (r *RocketReconciler) manageSuccess(ctx context.Context, instance *chatv1al
 	// Check if the resources are ready
 	resourcesReady, err := currentState.IsResourcesReady(instance)
 	if err != nil {
-		return r.manageError(ctx, instance, err)
+		return r.manageError(ctx, instance, fmt.Errorf("Error determining wether resources are ready: %w", err))
 	}
 
 	instance.Status.Ready = resourcesReady
 	instance.Status.Message = "Successfull"
 	err = r.setStatusPods(ctx, instance)
 	if err != nil {
-		return r.manageError(ctx, instance, err)
+		return r.manageError(ctx, instance, fmt.Errorf("Error setting pod Status: %w", err))
 	}
 
 	// If resources are ready and we have not errored before now, we are in a reconciling phase
@@ -213,6 +220,7 @@ func (r *RocketReconciler) manageSuccess(ctx context.Context, instance *chatv1al
 	//	instance.Status.ExternalURL = ingress.Status.
 	//}
 
+	// only update, if there are changes
 	err = r.client.Status().Update(ctx, instance)
 	if err != nil {
 		controllerLog.Error(err, "unable to update status", "object", instance.Name)
@@ -221,12 +229,12 @@ func (r *RocketReconciler) manageSuccess(ctx context.Context, instance *chatv1al
 			Requeue:      true,
 		}, nil
 	}
-	if resourcesReady {
-		debugLog.Info("desired cluster state met")
-		return ctrl.Result{RequeueAfter: RequeueDelay}, nil
 
+	if resourcesReady {
+		controllerLog.Info("desired cluster state met", "object", instance.Name)
+		return ctrl.Result{}, nil
 	}
-	debugLog.Info("desired cluster state met, but not all resources ready yet")
+	debugLog.Info("desired cluster state met, but not all resources ready yet", "object", instance.Name)
 	return ctrl.Result{RequeueAfter: RequeueDelayResourcesNotReady}, nil
 }
 

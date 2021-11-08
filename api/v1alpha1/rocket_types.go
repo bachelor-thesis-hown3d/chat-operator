@@ -146,7 +146,7 @@ type EmbeddedPod struct {
 //+kubebuilder:printcolumn:name="Webserver Version",type=string,JSONPath=`.spec.version`
 //+kubebuilder:printcolumn:name="Database Version",type=string,JSONPath=`.spec.database.version`
 //+kubebuilder:printcolumn:name="Phase",type=string,JSONPath=`.status.phase`
-//+kubebuilder:printcolumn:name="Ready",type=bool,JSONPath=`.status.ready`
+//+kubebuilder:printcolumn:name="Ready",type=boolean,JSONPath=`.status.ready`
 //+kubebuilder:object:root=true
 //+kubebuilder:subresource:status
 type Rocket struct {
