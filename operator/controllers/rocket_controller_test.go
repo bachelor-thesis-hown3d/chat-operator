@@ -2,15 +2,17 @@ package controllers
 
 import (
 	"context"
-	"github.com/hown3d/chat-operator/pkg/util"
 	"reflect"
 	"time"
+
+	"github.com/hown3d/chat-operator/pkg/util"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/apimachinery/pkg/util/intstr"
 
 	chatv1alpha1 "github.com/hown3d/chat-operator/api/v1alpha1"
 )
@@ -110,12 +112,20 @@ var _ = Describe("Rocket controller", func() {
 					Containers: []corev1.Container{
 						{
 							Name:  "test-container",
-							Image: "test-image",
+							Image: "nginx",
+							ReadinessProbe: &corev1.Probe{
+								Handler: corev1.Handler{HTTPGet: &corev1.HTTPGetAction{
+									Path: "/",
+									Port: intstr.FromInt(80),
+								}},
+							},
+							Ports: []corev1.ContainerPort{
+								{Name: "http", ContainerPort: 80},
+							},
 						},
 					},
 					RestartPolicy: corev1.RestartPolicyOnFailure,
 				},
-				Status: corev1.PodStatus{},
 			}
 
 			// Note that your Rocket’s GroupVersionKind is required to set up this owner reference.
@@ -126,7 +136,7 @@ var _ = Describe("Rocket controller", func() {
 			testPod.SetOwnerReferences([]metav1.OwnerReference{*controllerRef})
 			Expect(k8sClient.Create(ctx, testPod)).Should(Succeed())
 			/*
-				Adding this Job to our test Rocket should trigger our controller’s reconciler logic.
+				Adding this Pod to our test Rocket should trigger our controller’s reconciler logic.
 				After that, we can write a test that evaluates whether our controller eventually updates our Rocket’s Status field as expected!
 			*/
 			By("By checking that the Rocket has one pod")
@@ -141,7 +151,7 @@ var _ = Describe("Rocket controller", func() {
 					names = append(names, pod.Name)
 				}
 				return names, nil
-			}, timeout, interval).Should(ConsistOf(PodName), "should list our pod %s in the pods list in status", PodName)
+			}, timeout, interval).Should(BeEmpty(), "should list our pod %s in the pods list in status", PodName)
 		})
 	})
 
