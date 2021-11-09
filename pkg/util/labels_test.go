@@ -4,7 +4,7 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/hown3d/chat-operator/api/chat.accso.de/v1alpha1"
+	"github.com/bachelor-thesis-hown3d/chat-operator/api/chat.accso.de/v1alpha1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 

@@ -22,16 +22,16 @@ import (
 	"reflect"
 	"time"
 
-	"github.com/hown3d/chat-operator/pkg/common"
-	"github.com/hown3d/chat-operator/pkg/model"
-	"github.com/hown3d/chat-operator/pkg/util"
+	"github.com/bachelor-thesis-hown3d/chat-operator/pkg/common"
+	"github.com/bachelor-thesis-hown3d/chat-operator/pkg/model"
+	"github.com/bachelor-thesis-hown3d/chat-operator/pkg/util"
 
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
 	runtimeClient "sigs.k8s.io/controller-runtime/pkg/client"
 
-	chatv1alpha1 "github.com/hown3d/chat-operator/api/chat.accso.de/v1alpha1"
+	chatv1alpha1 "github.com/bachelor-thesis-hown3d/chat-operator/api/chat.accso.de/v1alpha1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/client-go/tools/record"
 )

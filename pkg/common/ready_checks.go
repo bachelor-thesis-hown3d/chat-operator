@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"reflect"
 
-	chatv1alpha1 "github.com/hown3d/chat-operator/api/chat.accso.de/v1alpha1"
-	"github.com/hown3d/chat-operator/pkg/model"
+	chatv1alpha1 "github.com/bachelor-thesis-hown3d/chat-operator/api/chat.accso.de/v1alpha1"
+	"github.com/bachelor-thesis-hown3d/chat-operator/pkg/model"
 	"github.com/pkg/errors"
 	appsv1 "k8s.io/api/apps/v1"
 	apiErrors "k8s.io/apimachinery/pkg/api/errors"
