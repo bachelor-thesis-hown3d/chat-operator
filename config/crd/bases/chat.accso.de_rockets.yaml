@@ -32,8 +32,6 @@ spec:
     name: v1alpha1
     schema:
       openAPIV3Schema:
-        description: Rocket is the Schema for the rockets API additional column for
-          `kubectl get` output
         properties:
           apiVersion:
             description: 'APIVersion defines the versioned schema of this representation
