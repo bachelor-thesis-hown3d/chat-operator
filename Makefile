@@ -81,11 +81,14 @@ generate: controller-gen ## Generate code containing DeepCopy, DeepCopyInto, and
 	$(CONTROLLER_GEN) object:headerFile="hack/boilerplate.go.txt" paths="./..."
 
 client: ## Generate clientset for chat.accso.de crd (https://github.com/kubernetes/community/blob/master/contributors/devel/sig-api-machinery/generating-clientset.md)
-	GO111MODULE=on go install k8s.io/code-generator/cmd/client-gen
-	client-gen --input "chat.accso.de/v1alpha1" --input-base github.com/bachelor-thesis-hown3d/chat-operator/api --go-header-file hack/boilerplate.go.txt --output-package github.com/bachelor-thesis-hown3d/chat-operator/pkg/client
+	@mkdir -p ./tmp/code-generator
+	@git clone https://github.com/kubernetes/code-generator.git --branch v0.21.0-alpha.2 --single-branch  ./tmp/code-generator
+	# generate client
+	./tmp/code-generator/generate-groups.sh client github.com/bachelor-thesis-hown3d/chat-operator/pkg/client github.com/bachelor-thesis-hown3d/chat-operator/api chat.accso.de:v1alpha1 --output-base ./tmp --go-header-file ./hack/boilerplate.go.txt
+	# check generated client at ./pkg/client
 	@mkdir pkg/client || true
-	@cp -R github.com/bachelor-thesis-hown3d/chat-operator/pkg/client/* ./pkg/client/
-	@rm -rf github.com
+	@cp -r ./tmp/github.com/bachelor-thesis-hown3d/chat-operator/pkg/client/* ./pkg/client/
+	@rm -rf ./tmp/github.com ./tmp/code-generator
 
 fmt: ## Run go fmt against code.
 	go fmt ./...
