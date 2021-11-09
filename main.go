@@ -31,9 +31,9 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
-	chatv1alpha1 "github.com/hown3d/chat-operator/api/chat.accso.de/v1alpha1"
-	"github.com/hown3d/chat-operator/controllers"
-	"github.com/hown3d/chat-operator/pkg/util"
+	chatv1alpha1 "github.com/bachelor-thesis-hown3d/chat-operator/api/chat.accso.de/v1alpha1"
+	"github.com/bachelor-thesis-hown3d/chat-operator/controllers"
+	"github.com/bachelor-thesis-hown3d/chat-operator/pkg/util"
 	//+kubebuilder:scaffold:imports
 )
 

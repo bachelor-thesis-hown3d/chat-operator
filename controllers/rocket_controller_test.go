@@ -5,7 +5,7 @@ import (
 	"reflect"
 	"time"
 
-	"github.com/hown3d/chat-operator/pkg/util"
+	"github.com/bachelor-thesis-hown3d/chat-operator/pkg/util"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
@@ -14,7 +14,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/intstr"
 
-	chatv1alpha1 "github.com/hown3d/chat-operator/api/chat.accso.de/v1alpha1"
+	chatv1alpha1 "github.com/bachelor-thesis-hown3d/chat-operator/api/chat.accso.de/v1alpha1"
 )
 
 // +kubebuilder:docs-gen:collapse=Imports

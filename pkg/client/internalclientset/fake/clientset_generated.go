@@ -18,9 +18,9 @@ limitations under the License.
 package fake
 
 import (
-	clientset "github.com/hown3d/chat-operator/pkg/client/internalclientset"
-	chatv1alpha1 "github.com/hown3d/chat-operator/pkg/client/internalclientset/typed/chat.accso.de/v1alpha1"
-	fakechatv1alpha1 "github.com/hown3d/chat-operator/pkg/client/internalclientset/typed/chat.accso.de/v1alpha1/fake"
+	clientset "github.com/bachelor-thesis-hown3d/chat-operator/pkg/client/internalclientset"
+	chatv1alpha1 "github.com/bachelor-thesis-hown3d/chat-operator/pkg/client/internalclientset/typed/chat.accso.de/v1alpha1"
+	fakechatv1alpha1 "github.com/bachelor-thesis-hown3d/chat-operator/pkg/client/internalclientset/typed/chat.accso.de/v1alpha1/fake"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/watch"
 	"k8s.io/client-go/discovery"

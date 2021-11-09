@@ -4,8 +4,8 @@ import (
 	"context"
 	"fmt"
 
-	chatv1alpha1 "github.com/hown3d/chat-operator/api/chat.accso.de/v1alpha1"
-	"github.com/hown3d/chat-operator/pkg/model"
+	chatv1alpha1 "github.com/bachelor-thesis-hown3d/chat-operator/api/chat.accso.de/v1alpha1"
+	"github.com/bachelor-thesis-hown3d/chat-operator/pkg/model"
 	runtimeClient "sigs.k8s.io/controller-runtime/pkg/client"
 
 	apiErrors "k8s.io/apimachinery/pkg/api/errors"
