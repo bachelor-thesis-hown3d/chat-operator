@@ -1,4 +1,4 @@
-module github.com/hown3d/chat-operator
+module github.com/bachelor-thesis-hown3d/chat-operator
 
 go 1.16
 
