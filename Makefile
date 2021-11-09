@@ -82,9 +82,9 @@ generate: controller-gen ## Generate code containing DeepCopy, DeepCopyInto, and
 
 client: ## Generate clientset for chat.accso.de crd (https://github.com/kubernetes/community/blob/master/contributors/devel/sig-api-machinery/generating-clientset.md)
 	GO111MODULE=on go install k8s.io/code-generator/cmd/client-gen
-	client-gen --input "chat.accso.de/v1alpha1" --input-base github.com/hown3d/chat-operator/api --go-header-file hack/boilerplate.go.txt --output-package github.com/hown3d/chat-operator/pkg/client
+	client-gen --input "chat.accso.de/v1alpha1" --input-base github.com/bachelor-thesis-hown3d/chat-operator/api --go-header-file hack/boilerplate.go.txt --output-package github.com/bachelor-thesis-hown3d/chat-operator/pkg/client
 	@mkdir pkg/client || true
-	@cp -R github.com/hown3d/chat-operator/pkg/client/* ./pkg/client/
+	@cp -R github.com/bachelor-thesis-hown3d/chat-operator/pkg/client/* ./pkg/client/
 	@rm -rf github.com
 
 fmt: ## Run go fmt against code.

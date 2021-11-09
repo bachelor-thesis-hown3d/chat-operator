@@ -130,7 +130,7 @@ var _ = Describe("Rocket controller", func() {
 
 			// Note that your Rocket’s GroupVersionKind is required to set up this owner reference.
 			kind := reflect.TypeOf(chatv1alpha1.Rocket{}).Name()
-			groupVersionKind := chatv1alpha1.GroupVersion.WithKind(kind)
+			groupVersionKind := chatv1alpha1.SchemeGroupVersion.WithKind(kind)
 
 			controllerRef := metav1.NewControllerRef(createdRocket, groupVersionKind)
 			testPod.SetOwnerReferences([]metav1.OwnerReference{*controllerRef})
