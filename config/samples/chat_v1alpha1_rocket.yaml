@@ -10,29 +10,41 @@ spec:
     email: "test@test"
 ---
 
- apiVersion: chat.accso.de/v1alpha1
- kind: Rocket
- metadata:
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: no-version
+---
+
+apiVersion: chat.accso.de/v1alpha1
+kind: Rocket
+metadata:
   name: rocket-sample-no-versions
-  namespace: default
- spec:
-   adminSpec: 
-     username: "test"
-     email: "test@test"
+  namespace: no-version
+spec:
+  adminSpec: 
+    username: "test"
+    email: "test@test"
 
-# ---
+---
 
-# apiVersion: chat.accso.de/v1alpha1
-# kind: Rocket
-# metadata:
-#  name: rocket-sample-high-aval
-#  namespace: default
-# spec:
-#   adminSpec:
-#     username: "test-abc"
-#     email: "test@mail.com"
-#   replicas: 3
-#   version: "3.18"
-#   database:
-#     replicas: 3
+apiVersion: v1
+kind: Namespace
+metadata:
+  name:  high-eval
+---
+
+apiVersion: chat.accso.de/v1alpha1
+kind: Rocket
+metadata:
+ name: rocket-sample-high-aval
+ namespace: high-eval
+spec:
+  adminSpec:
+    username: "test-abc"
+    email: "test@mail.com"
+  replicas: 3
+  version: "3.18"
+  database:
+    replicas: 3
 
