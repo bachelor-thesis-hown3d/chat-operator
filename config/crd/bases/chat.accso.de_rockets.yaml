@@ -67,6 +67,7 @@ spec:
                     type: integer
                   storageSpec:
                     description: StorageSpec embedds a PersistentVolumeClaim Template
+                      (+)kubebuilder:validation:EmbeddedResource
                     properties:
                       apiVersion:
                         description: 'APIVersion defines the versioned schema of this
@@ -337,7 +338,6 @@ spec:
                             type: string
                         type: object
                     type: object
-                    x-kubernetes-embedded-resource: true
                   version:
                     description: Version of the Mongodb Containers, matches a Tag
                       from https://hub.docker.com/r/bitnami/mongodb repository

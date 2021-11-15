@@ -39,7 +39,7 @@ func (c *RocketDeploymentCreator) Update(rocket *chatv1alpha1.Rocket, cur client
 	// check image
 	// check image
 	curImage := dep.Spec.Template.Spec.Containers[0].Image
-	newImage := "rocket.chat:" + rocket.Spec.Version
+	newImage := "rocketchat/rocket.chat:" + rocket.Spec.Version
 	if curImage != newImage {
 		dep.Spec.Template.Spec.Containers[0].Image = newImage
 		update = true

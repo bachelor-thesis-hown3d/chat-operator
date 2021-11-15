@@ -41,7 +41,7 @@ type RocketDatabase struct {
 	// +optional
 	Replicas int32 `json:"replicas,omitempty"`
 	// StorageSpec embedds a PersistentVolumeClaim Template
-	// +kubebuilder:validation:EmbeddedResource
+	// (+)kubebuilder:validation:EmbeddedResource
 	// +optional
 	StorageSpec *EmbeddedPersistentVolumeClaim `json:"storageSpec,omitempty"`
 }
