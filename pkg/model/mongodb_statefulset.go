@@ -139,27 +139,29 @@ func createStatefulSetVolumes(rocket *chatv1alpha1.Rocket, claimTemplate *chatv1
 		},
 	})
 
+	var volumeSource corev1.VolumeSource
+
 	if claimTemplate == nil {
-		volumes = append(volumes, corev1.Volume{
-			Name: rocket.Name + MongodbVolumeSuffix,
-			VolumeSource: corev1.VolumeSource{
-				EmptyDir: &corev1.EmptyDirVolumeSource{},
-			},
-		})
-		sts.Spec.Template.Spec.Volumes = volumes
-		return
+		volumeSource.EmptyDir = &corev1.EmptyDirVolumeSource{}
+	} else {
+		if claimTemplate.Name == "" {
+			claimTemplate.Name = rocket.Name + MongodbVolumeSuffix
+		}
+		if claimTemplate.Spec.AccessModes == nil {
+			claimTemplate.Spec.AccessModes = []corev1.PersistentVolumeAccessMode{corev1.ReadWriteOnce}
+		}
+		pvcTemplate := VolumeClaimTemplate(claimTemplate)
+		volumeSource.PersistentVolumeClaim = &corev1.PersistentVolumeClaimVolumeSource{
+			ClaimName: rocket.Name + MongodbVolumeSuffix,
+		}
+		sts.Spec.VolumeClaimTemplates = []corev1.PersistentVolumeClaim{*pvcTemplate}
 	}
 
-	if claimTemplate.Name == "" {
-		claimTemplate.Name = rocket.Name + MongodbVolumeSuffix
-	}
-	if claimTemplate.Spec.AccessModes == nil {
-		claimTemplate.Spec.AccessModes = []corev1.PersistentVolumeAccessMode{corev1.ReadWriteOnce}
-	}
-	pvcTemplate := VolumeClaimTemplate(claimTemplate)
-	sts.Spec.VolumeClaimTemplates = []corev1.PersistentVolumeClaim{
-		*pvcTemplate,
-	}
+	volumes = append(volumes, corev1.Volume{
+		Name:         rocket.Name + MongodbVolumeSuffix,
+		VolumeSource: volumeSource,
+	})
+	sts.Spec.Template.Spec.Volumes = volumes
 }
 
 func (c *MongodbStatefulSetCreator) Selector(r *chatv1alpha1.Rocket) client.ObjectKey {

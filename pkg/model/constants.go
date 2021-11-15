@@ -15,7 +15,7 @@ const (
 
 	RocketAdminSecretSuffix         = "-admin"
 	RocketWebserverComponentName    = "webserver"
-	RocketWebserverDefaultVersion   = "3.18"
+	RocketWebserverDefaultVersion   = "3.18.2"
 	RocketWebserverDeploymentSuffix = "-rocketchat"
 	RocketWebserverServiceSuffix    = "-rocketchat-service"
 )
