@@ -114,6 +114,8 @@ type RocketSpec struct {
 	// Database contains the specification for the mongodb Database
 	// +optional
 	Database RocketDatabase `json:"database,omitempty"`
+	// Hostname to use for the instance
+	Host string `json:"host"`
 }
 
 // RocketStatus defines the observed state of Rocket
