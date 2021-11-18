@@ -41,8 +41,7 @@ func (c *RocketIngressCreator) CreateResource(r *chatv1alpha1.Rocket) client.Obj
 		Spec: networkingv1.IngressSpec{
 			Rules: []networkingv1.IngressRule{
 				{
-					// TODO: Fix Host!
-					Host: "test-host",
+					Host: r.Spec.Host,
 					IngressRuleValue: networkingv1.IngressRuleValue{
 						HTTP: &networkingv1.HTTPIngressRuleValue{
 							Paths: []networkingv1.HTTPIngressPath{

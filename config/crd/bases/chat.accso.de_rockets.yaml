@@ -343,6 +343,9 @@ spec:
                       from https://hub.docker.com/r/bitnami/mongodb repository
                     type: string
                 type: object
+              host:
+                description: Hostname to use for the instance
+                type: string
               replicas:
                 description: Replicas specifies how many Webserver Pods shall be created
                 format: int32
@@ -350,6 +353,8 @@ spec:
               version:
                 description: Version specifies the Rocket.Chat Container Image Version
                 type: string
+            required:
+            - host
             type: object
           status:
             description: RocketStatus defines the observed state of Rocket
