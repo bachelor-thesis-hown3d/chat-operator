@@ -86,7 +86,8 @@ client: ## Generate clientset for chat.accso.de crd (https://github.com/kubernet
 	# generate client
 	./tmp/code-generator/generate-groups.sh client github.com/bachelor-thesis-hown3d/chat-operator/pkg/client github.com/bachelor-thesis-hown3d/chat-operator/api chat.accso.de:v1alpha1 --output-base ./tmp --go-header-file ./hack/boilerplate.go.txt
 	# check generated client at ./pkg/client
-	@mkdir pkg/client || true
+	@mkdir pkg/client &>/dev/null || true
+	echo "Copy generated client code into repository"
 	@cp -r ./tmp/github.com/bachelor-thesis-hown3d/chat-operator/pkg/client/* ./pkg/client/
 	@rm -rf ./tmp/github.com ./tmp/code-generator
 
@@ -105,7 +106,7 @@ build: generate fmt vet ## Build manager binary.
 	go build -o bin/manager -ldflags="-X util.version.Version=$(VERSION)" main.go 
 
 run: manifests generate fmt vet ## Run a controller from your host.
-	air -c .air.toml	
+	skaffold dev --port-forward=pods
 
 docker-build: test ## Build docker image with the manager.
 	docker build -t ${IMG} .
