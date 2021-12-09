@@ -349,8 +349,10 @@ spec:
                   annotations:
                     additionalProperties:
                       type: string
+                    description: Annotations to add to the ingress Object
                     type: object
                   host:
+                    description: Host is the hostname for ingress object
                     type: string
                 required:
                 - annotations
