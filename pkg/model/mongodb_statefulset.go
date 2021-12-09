@@ -149,26 +149,22 @@ func createStatefulSetVolumes(rocket *chatv1alpha1.Rocket, claimTemplate *chatv1
 
 	var volumeSource corev1.VolumeSource
 
-	if claimTemplate == nil {
-		volumeSource.EmptyDir = &corev1.EmptyDirVolumeSource{}
-	} else {
-		if claimTemplate.Name == "" {
-			claimTemplate.Name = rocket.Name + MongodbVolumeSuffix
-		}
-		if claimTemplate.Spec.AccessModes == nil {
-			claimTemplate.Spec.AccessModes = []corev1.PersistentVolumeAccessMode{corev1.ReadWriteOnce}
-		}
-		if claimTemplate.Spec.VolumeMode == nil {
-			defaultVolumeMode := corev1.PersistentVolumeFilesystem
-			claimTemplate.Spec.VolumeMode = &defaultVolumeMode
-		}
-
-		pvcTemplate := VolumeClaimTemplate(claimTemplate)
-		volumeSource.PersistentVolumeClaim = &corev1.PersistentVolumeClaimVolumeSource{
-			ClaimName: rocket.Name + MongodbVolumeSuffix,
-		}
-		sts.Spec.VolumeClaimTemplates = []corev1.PersistentVolumeClaim{*pvcTemplate}
+	if claimTemplate.Name == "" {
+		claimTemplate.Name = rocket.Name + MongodbVolumeSuffix
 	}
+	if claimTemplate.Spec.AccessModes == nil {
+		claimTemplate.Spec.AccessModes = []corev1.PersistentVolumeAccessMode{corev1.ReadWriteOnce}
+	}
+	if claimTemplate.Spec.VolumeMode == nil {
+		defaultVolumeMode := corev1.PersistentVolumeFilesystem
+		claimTemplate.Spec.VolumeMode = &defaultVolumeMode
+	}
+
+	pvcTemplate := VolumeClaimTemplate(claimTemplate)
+	volumeSource.PersistentVolumeClaim = &corev1.PersistentVolumeClaimVolumeSource{
+		ClaimName: rocket.Name + MongodbVolumeSuffix,
+	}
+	sts.Spec.VolumeClaimTemplates = []corev1.PersistentVolumeClaim{*pvcTemplate}
 
 	volumes = append(volumes, corev1.Volume{
 		Name:         rocket.Name + MongodbVolumeSuffix,

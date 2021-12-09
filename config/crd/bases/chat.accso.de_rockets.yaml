@@ -354,9 +354,6 @@ spec:
                   host:
                     description: Host is the hostname for ingress object
                     type: string
-                required:
-                - annotations
-                - host
                 type: object
               replicas:
                 description: Replicas specifies how many Webserver Pods shall be created
@@ -365,8 +362,6 @@ spec:
               version:
                 description: Version specifies the Rocket.Chat Container Image Version
                 type: string
-            required:
-            - ingressSpec
             type: object
           status:
             description: RocketStatus defines the observed state of Rocket

@@ -42,7 +42,6 @@ type RocketDatabase struct {
 	Replicas int32 `json:"replicas,omitempty"`
 	// StorageSpec embedds a PersistentVolumeClaim Template
 	// (+)kubebuilder:validation:EmbeddedResource
-	// +optional
 	StorageSpec *EmbeddedPersistentVolumeClaim `json:"storageSpec,omitempty"`
 }
 
@@ -112,17 +111,17 @@ type RocketSpec struct {
 	// AdminSpec specifies the admin username and email
 	AdminSpec *RocketAdminSpec `json:"adminSpec,omitempty"`
 	// Database contains the specification for the mongodb Database
-	// +optional
 	Database RocketDatabase `json:"database,omitempty"`
 	// Hostname to use for the instance
-	IngressSpec RocketIngressSpec `json:"ingressSpec"`
+	IngressSpec RocketIngressSpec `json:"ingressSpec,omitempty"`
 }
 
 type RocketIngressSpec struct {
 	// Host is the hostname for ingress object
-	Host string `json:"host"`
+	Host string `json:"host,omitempty"`
 	// Annotations to add to the ingress Object
-	Annotations map[string]string `json:"annotations"`
+	// +optional
+	Annotations map[string]string `json:"annotations,omitempty"`
 }
 
 // RocketStatus defines the observed state of Rocket

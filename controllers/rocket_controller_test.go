@@ -52,7 +52,15 @@ var _ = Describe("Rocket controller", func() {
 					Name:      RocketName,
 					Namespace: RocketNamespace,
 				},
-				Spec: chatv1alpha1.RocketSpec{Replicas: 1},
+				Spec: chatv1alpha1.RocketSpec{
+					Replicas: 1,
+					IngressSpec: chatv1alpha1.RocketIngressSpec{
+						Host: "test",
+					},
+					Database: chatv1alpha1.RocketDatabase{
+						StorageSpec: &chatv1alpha1.EmbeddedPersistentVolumeClaim{},
+					},
+				},
 			}
 			Expect(k8sClient.Create(ctx, rocket)).Should(Succeed())
 
