@@ -8,6 +8,7 @@ import (
 	"github.com/bachelor-thesis-hown3d/chat-operator/pkg/util"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -36,7 +37,6 @@ func (c *RocketDeploymentCreator) Update(rocket *chatv1alpha1.Rocket, cur client
 		update = true
 	}
 
-	// check image
 	// check image
 	curImage := dep.Spec.Template.Spec.Containers[0].Image
 	newImage := "rocketchat/rocket.chat:" + rocket.Spec.Version
@@ -80,6 +80,14 @@ func (c *RocketDeploymentCreator) CreateResource(rocket *chatv1alpha1.Rocket) cl
 							ContainerPort: 3000,
 							Name:          "http",
 						}},
+						Resources: corev1.ResourceRequirements{
+							Requests: corev1.ResourceList{
+								// 60m CPU
+								corev1.ResourceCPU: *resource.NewMilliQuantity(60, resource.BinarySI),
+								// 1000Mi Memory
+								corev1.ResourceMemory: *resource.NewQuantity(1000*1024*1024, resource.BinarySI),
+							},
+						},
 						Env: rocketDeploymentEnvVars(rocket),
 						LivenessProbe: &corev1.Probe{
 							Handler:             corev1.Handler{HTTPGet: &corev1.HTTPGetAction{Path: "/api/info", Port: intstr.FromString("http")}},
