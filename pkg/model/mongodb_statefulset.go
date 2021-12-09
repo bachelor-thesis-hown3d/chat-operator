@@ -7,6 +7,7 @@ import (
 	"github.com/bachelor-thesis-hown3d/chat-operator/pkg/util"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
@@ -46,7 +47,7 @@ func (c *MongodbStatefulSetCreator) Update(rocket *chatv1alpha1.Rocket, cur clie
 	// check storageSpec
 	copy := sts.DeepCopy()
 	createStatefulSetVolumes(rocket, d.StorageSpec, sts)
-	if !reflect.DeepEqual(copy, sts) {
+	if !reflect.DeepEqual(copy.Spec.VolumeClaimTemplates[0].Spec, sts.Spec.VolumeClaimTemplates[0].Spec) {
 		update = true
 	}
 
@@ -87,8 +88,15 @@ func (c *MongodbStatefulSetCreator) CreateResource(rocket *chatv1alpha1.Rocket) 
 									ContainerPort: 27017,
 								},
 							},
-							Env:       mongodbEnvVars(rocket),
-							Resources: corev1.ResourceRequirements{},
+							Env: mongodbEnvVars(rocket),
+							Resources: corev1.ResourceRequirements{
+								Requests: corev1.ResourceList{
+									// 50m CPU
+									corev1.ResourceCPU: *resource.NewMilliQuantity(50, resource.BinarySI),
+									// 1500Mi Memory
+									corev1.ResourceMemory: *resource.NewQuantity(1500*1024*1024, resource.BinarySI),
+								},
+							},
 							VolumeMounts: []corev1.VolumeMount{
 								{
 									Name:      rocket.Name + MongodbVolumeSuffix,
@@ -150,6 +158,11 @@ func createStatefulSetVolumes(rocket *chatv1alpha1.Rocket, claimTemplate *chatv1
 		if claimTemplate.Spec.AccessModes == nil {
 			claimTemplate.Spec.AccessModes = []corev1.PersistentVolumeAccessMode{corev1.ReadWriteOnce}
 		}
+		if claimTemplate.Spec.VolumeMode == nil {
+			defaultVolumeMode := corev1.PersistentVolumeFilesystem
+			claimTemplate.Spec.VolumeMode = &defaultVolumeMode
+		}
+
 		pvcTemplate := VolumeClaimTemplate(claimTemplate)
 		volumeSource.PersistentVolumeClaim = &corev1.PersistentVolumeClaimVolumeSource{
 			ClaimName: rocket.Name + MongodbVolumeSuffix,

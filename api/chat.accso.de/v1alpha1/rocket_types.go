@@ -115,7 +115,14 @@ type RocketSpec struct {
 	// +optional
 	Database RocketDatabase `json:"database,omitempty"`
 	// Hostname to use for the instance
+	IngressSpec RocketIngressSpec `json:"ingressSpec"`
+}
+
+type RocketIngressSpec struct {
+	// Host is the hostname for ingress object
 	Host string `json:"host"`
+	// Annotations to add to the ingress Object
+	Annotations map[string]string `json:"annotations"`
 }
 
 // RocketStatus defines the observed state of Rocket

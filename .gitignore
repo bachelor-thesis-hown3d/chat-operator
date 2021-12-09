@@ -25,3 +25,5 @@ tmp
 *.swp
 *.swo
 *~
+_output/
+cover.out

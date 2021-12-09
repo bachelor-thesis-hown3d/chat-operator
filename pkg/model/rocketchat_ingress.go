@@ -34,14 +34,15 @@ func (c *RocketIngressCreator) CreateResource(r *chatv1alpha1.Rocket) client.Obj
 
 	return &networkingv1.Ingress{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      r.Name,
-			Namespace: r.Namespace,
-			Labels:    r.Labels,
+			Name:        r.Name,
+			Namespace:   r.Namespace,
+			Labels:      r.Labels,
+			Annotations: r.Spec.IngressSpec.Annotations,
 		},
 		Spec: networkingv1.IngressSpec{
 			Rules: []networkingv1.IngressRule{
 				{
-					Host: r.Spec.Host,
+					Host: r.Spec.IngressSpec.Host,
 					IngressRuleValue: networkingv1.IngressRuleValue{
 						HTTP: &networkingv1.HTTPIngressRuleValue{
 							Paths: []networkingv1.HTTPIngressPath{

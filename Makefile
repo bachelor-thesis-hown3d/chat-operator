@@ -3,7 +3,7 @@
 # To re-generate a bundle for another specific version without changing the standard setup, you can:
 # - use the VERSION as arg of the bundle target (e.g make bundle VERSION=0.0.2)
 # - use environment variables to overwrite this value (e.g export VERSION=0.0.2)
-VERSION ?= 1.0.0
+VERSION ?= 1.0.1
 # CHANNELS define the bundle channels used in the bundle.
 # Add a new line here if you would like to change its default config. (E.g CHANNELS = "candidate,fast,stable")
 # To re-generate a bundle for other specific channels without changing the standard setup, you can:
@@ -80,7 +80,7 @@ manifests: controller-gen ## Generate WebhookConfiguration, ClusterRole and Cust
 generate: controller-gen ## Generate code containing DeepCopy, DeepCopyInto, and DeepCopyObject method implementations.
 	$(CONTROLLER_GEN) object:headerFile="hack/boilerplate.go.txt" paths="./..."
 
-client: ## Generate clientset for chat.accso.de crd (https://github.com/kubernetes/community/blob/master/contributors/devel/sig-api-machinery/generating-clientset.md)
+client: generate ## Generate clientset for chat.accso.de crd (https://github.com/kubernetes/community/blob/master/contributors/devel/sig-api-machinery/generating-clientset.md)
 	@mkdir -p ./tmp/code-generator
 	@git clone https://github.com/kubernetes/code-generator.git --branch v0.21.0-alpha.2 --single-branch  ./tmp/code-generator
 	# generate client
@@ -100,23 +100,21 @@ vet: ## Run go vet against code.
 test: manifests generate fmt vet envtest ## Run tests.
 	KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) -p path)" go test ./... -coverprofile cover.out
 
+dev: manifests generate fmt vet ## Run a controller from your host.
+	skaffold dev 
 ##@ Build
 
 build: generate fmt vet ## Build manager binary.
 	go build -o bin/manager -ldflags="-X util.version.Version=$(VERSION)" main.go 
 
-run: manifests generate fmt vet ## Run a controller from your host.
-	skaffold dev --port-forward=pods
 
 docker-build: test ## Build docker image with the manager.
-	docker build -t ${IMG} .
+	DOCKER_BUILDKIT=1 docker build -t ${IMG} .
 
-docker-push: ## Push docker image with the manager.
+docker-push: docker-build ## Push docker image with the manager.
 	docker push ${IMG}
 
 ##@ Deployment
-
-devel-quickstart: kind install deploy-samples run ## create a kind cluster, deploy a dashboard, deploy the samples and run the controller on your host
 
 quickstart: kind install deploy-samples deploy ## create a kind cluster, deploy a dashboard, deploy the samples and run the controller inside the cluster
 
@@ -132,17 +130,12 @@ install: manifests kustomize ## Install CRDs into the K8s cluster specified in ~
 uninstall: manifests kustomize ## Uninstall CRDs from the K8s cluster specified in ~/.kube/config.
 	$(KUSTOMIZE) build config/crd | kubectl delete -f -
 
-deploy: manifests kustomize ## Deploy controller to the K8s cluster specified in ~/.kube/config.
+deploy: manifests kustomize docker-push ## Deploy controller to the K8s cluster specified in ~/.kube/config.
 	cd config/manager && $(KUSTOMIZE) edit set image controller=${IMG}
 	$(KUSTOMIZE) build config/default | kubectl apply -f -
 
 undeploy: ## Undeploy controller from the K8s cluster specified in ~/.kube/config.
 	$(KUSTOMIZE) build config/default | kubectl delete -f -
-
-dashboard: ## Deploy the kubernetes dashboard inside the cluster
-	kubectl create secret generic kubernetes-dashboard-certs --from-file=hack/dashboard/certs -n kubernetes-dashboard || true
-	kubectl apply -f hack/dashboard/dashboard.yaml
-	@echo "Access Dashboard on https://localhost:7070 with Access Token $(shell kubectl get secret/service-account-token -n kubernetes-dashboard -o template --template={{.data.token}} | base64 -d )"
 
 kind: ## Create a kind cluster
 	kind create cluster --config hack/kind.yaml ||true
