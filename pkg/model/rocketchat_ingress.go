@@ -40,6 +40,14 @@ func (c *RocketIngressCreator) CreateResource(r *chatv1alpha1.Rocket) client.Obj
 			Annotations: r.Spec.IngressSpec.Annotations,
 		},
 		Spec: networkingv1.IngressSpec{
+			TLS: []networkingv1.IngressTLS{
+				{
+					Hosts: []string{
+						r.Spec.IngressSpec.Host,
+					},
+					SecretName: r.Name + "-tls",
+				},
+			},
 			Rules: []networkingv1.IngressRule{
 				{
 					Host: r.Spec.IngressSpec.Host,
