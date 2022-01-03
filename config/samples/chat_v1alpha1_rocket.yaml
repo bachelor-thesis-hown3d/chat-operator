@@ -8,6 +8,8 @@ spec:
   adminSpec: 
     username: "test"
     email: "test@test"
+  storageSpec:
+
 ---
 
 apiVersion: v1
